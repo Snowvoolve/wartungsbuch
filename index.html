@@ -80,6 +80,7 @@
     <a href="#/personal">Personal</a>
     <a href="#/neu">+ Gerät</a>
     <a href="#/sicherung">Sicherung</a>
+    <a href="#/installieren" id="installieren-link">📲 App installieren</a>
   </nav>
 </header>
 
@@ -255,6 +256,7 @@ function zeigeSeite() {
   if (seite === "personal") return seitePersonal();
   if (seite === "unterweisung" && id) return seiteUnterweisung(id);
   if (seite === "sicherung") return seiteSicherung();
+  if (seite === "installieren") return seiteInstallieren();
   return seiteUebersicht();
 }
 
@@ -713,9 +715,100 @@ function sicherungLaden() {
   leser.readAsText(datei);
 }
 
+/* ---------- APP INSTALLIEREN (mit QR-Code zum Weitergeben) ---------- */
+
+// Chrome und Edge melden, wenn die App installierbar ist. Das merken wir uns für den Knopf.
+let installAnfrage = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  installAnfrage = e;
+  if (location.hash === "#/installieren") seiteInstallieren();
+});
+window.addEventListener("appinstalled", () => {
+  installAnfrage = null;
+  alert("Wartungsbuch ist installiert. Du findest es jetzt als eigenes Symbol.");
+});
+
+// Läuft die App schon als installierte App (eigenes Fenster)?
+function istInstalliert() {
+  return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function welchesGeraet() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iphone";
+  if (/Android/i.test(ua)) return "android";
+  if (/Firefox/i.test(ua)) return "firefox";
+  return "pc";
+}
+
+async function jetztInstallieren() {
+  if (!installAnfrage) return;
+  installAnfrage.prompt();
+  await installAnfrage.userChoice;
+  installAnfrage = null;
+  seiteInstallieren();
+}
+
+function appAdresse() {
+  return location.origin + location.pathname + "#/installieren";
+}
+
+function seiteInstallieren() {
+  const geraet = welchesGeraet();
+  let anleitung;
+  if (istInstalliert()) {
+    anleitung = `<p>✅ Du nutzt das Wartungsbuch bereits als installierte App.</p>`;
+  } else if (installAnfrage) {
+    anleitung = `
+      <p>Ein Klick, dann hast du das Wartungsbuch als eigene App mit Symbol.</p>
+      <button onclick="jetztInstallieren()">📲 Jetzt installieren</button>`;
+  } else if (geraet === "iphone") {
+    anleitung = `
+      <ol>
+        <li>Diese Seite in <b>Safari</b> öffnen (nicht Chrome).</li>
+        <li>Unten auf <b>Teilen</b> tippen (Quadrat mit Pfeil nach oben).</li>
+        <li><b>"Zum Home-Bildschirm"</b> wählen.</li>
+        <li>Oben rechts <b>"Hinzufügen"</b> tippen.</li>
+      </ol>`;
+  } else if (geraet === "android") {
+    anleitung = `
+      <ol>
+        <li>Diese Seite in <b>Chrome</b> öffnen.</li>
+        <li>Oben rechts auf die <b>drei Punkte ⋮</b> tippen.</li>
+        <li><b>"App installieren"</b> oder <b>"Zum Startbildschirm hinzufügen"</b> wählen.</li>
+      </ol>`;
+  } else if (geraet === "firefox") {
+    anleitung = `<p>Firefox kann am PC keine Apps installieren. Bitte diese Seite in <b>Chrome</b> oder <b>Edge</b> öffnen.</p>`;
+  } else {
+    anleitung = `
+      <ol>
+        <li>Diese Seite in <b>Chrome</b> oder <b>Edge</b> öffnen.</li>
+        <li>Rechts in der Adressleiste auf das <b>Installieren-Symbol</b> klicken (Bildschirm mit Pfeil).</li>
+        <li>In Edge alternativ: <b>⋯ → Apps → Diese Website als App installieren</b>.</li>
+      </ol>
+      <p class="klein">Kein Symbol zu sehen? Seite einmal neu laden (F5) und ein paar Sekunden warten.</p>`;
+  }
+
+  inhalt.innerHTML = `
+    <h2>App installieren</h2>
+    <div class="karte nicht-drucken">${anleitung}</div>
+    <h3 class="nicht-drucken">QR-Code zum Weitergeben</h3>
+    <p class="klein nicht-drucken">Für Handys: Code mit der Handykamera scannen, dann öffnet sich diese Seite mit der Anleitung. Zum Ausdrucken für Kunden oder Mitarbeiter.</p>
+    <div class="qr-etikett" style="max-width:300px;margin:12px auto">
+      <strong>Wartungsbuch-App</strong><br>
+      ${qrBild(appAdresse())}<br>
+      <span class="klein">Scannen → App installieren</span>
+    </div>
+    <button class="nicht-drucken" onclick="window.print()">QR-Code drucken</button>`;
+}
+
 /* ===== Start ===== */
 window.addEventListener("hashchange", zeigeSeite);
 zeigeSeite();
+
+// Den Link "App installieren" ausblenden, wenn die App schon installiert läuft
+if (istInstalliert()) document.getElementById("installieren-link").style.display = "none";
 
 // Installierbar machen (funktioniert nur über https oder localhost, nicht per Doppelklick)
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
