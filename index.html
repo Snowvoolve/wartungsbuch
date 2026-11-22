@@ -79,6 +79,7 @@
   button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px -8px rgba(21, 23, 26, .5); }
   button.zweit { background: var(--eisblau); color: var(--anthrazit); }
   button.loeschen { background: transparent; color: var(--rot); border: 1px solid var(--rot); }
+  button.rot-voll { background: var(--rot); color: #fff; border: 1px solid var(--rot); }
   button.mini { padding: 6px 12px; font-size: 13px; margin: 0; border-radius: 9px; }
   a.titel { color: var(--anthrazit); font-weight: 600; font-size: 17px; text-decoration: none; }
   a.titel:hover { text-decoration: underline; }
@@ -798,19 +799,55 @@ function behobenSpeichern(geraetId) {
   seiteGeraet(geraetId);
 }
 
+// Sicherheitsfenster vor dem Loeschen: erst nach "Ja, loeschen" passiert etwas
+function sicherFragen(titel, text, knopfText, aktion) {
+  let d = document.getElementById("fenster-loeschen");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "fenster-loeschen";
+    d.className = "fenster";
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `
+    <form method="dialog" onsubmit="return false">
+      <h2>${titel}</h2>
+      <p>${text}</p>
+      <p class="klein"><b>Das kann nicht rückgängig gemacht werden.</b></p>
+      <div class="fenster-knoepfe">
+        <button type="button" class="zweit" id="loeschen-nein">Abbrechen</button>
+        <button type="button" class="rot-voll" id="loeschen-ja">${knopfText}</button>
+      </div>
+    </form>`;
+  document.getElementById("loeschen-nein").onclick = () => d.close();
+  document.getElementById("loeschen-ja").onclick = () => { d.close(); aktion(); };
+  d.showModal();
+  setTimeout(() => document.getElementById("loeschen-nein").focus(), 50);
+}
+
 function pruefpunktLoeschen(geraetId, ppId) {
-  if (!confirm("Prüfpunkt mit allen Einträgen löschen?")) return;
   const g = findeGeraet(geraetId);
-  g.pruefpunkte = g.pruefpunkte.filter(p => p.id !== ppId);
-  speichereDaten();
-  seiteGeraet(geraetId);
+  const pp = g.pruefpunkte.find(p => p.id === ppId);
+  const n = pp.eintraege.length;
+  sicherFragen("Prüfpunkt löschen?",
+    `<b>${sicher(pp.text)}</b> an ${sicher(g.name)} wird gelöscht${n ? `, zusammen mit ${n} ${n === 1 ? "Prüfeintrag" : "Prüfeinträgen"} aus dem Verlauf` : ""}.`,
+    "Ja, Prüfpunkt löschen",
+    () => {
+      g.pruefpunkte = g.pruefpunkte.filter(p => p.id !== ppId);
+      speichereDaten();
+      seiteGeraet(geraetId);
+    });
 }
 
 function geraetLoeschen(geraetId) {
-  if (!confirm("Gerät mit allen Prüfungen wirklich löschen?")) return;
-  daten.geraete = daten.geraete.filter(g => g.id !== geraetId);
-  speichereDaten();
-  location.hash = "#/geraete";
+  const g = findeGeraet(geraetId);
+  sicherFragen("Gerät löschen?",
+    `<b>${sicher(g.name)}</b> wird gelöscht, mit ${g.pruefpunkte.length === 1 ? "seinem Prüfpunkt" : `allen ${g.pruefpunkte.length} Prüfpunkten`} und dem ganzen Prüfverlauf.`,
+    "Ja, Gerät löschen",
+    () => {
+      daten.geraete = daten.geraete.filter(x => x.id !== geraetId);
+      speichereDaten();
+      location.hash = "#/geraete";
+    });
 }
 
 /* ---------- QR-CODES ---------- */
