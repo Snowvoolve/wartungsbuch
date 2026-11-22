@@ -9,6 +9,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#15171A">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<!-- QR-Code-Baukasten (fertige Bibliothek, wird beim ersten Start geladen und dann offline gespeichert) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
   /* ===== Farben (aus deinem Profil: Anthrazit, Silber, Eisblau, Off-White) ===== */
   :root {
@@ -22,94 +24,87 @@
     --gruen: #2E8B57;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: Inter, system-ui, sans-serif;
-    background: var(--hell);
-    color: var(--anthrazit);
-  }
-  header {
-    background: var(--anthrazit);
-    color: var(--hell);
-    padding: 14px 16px;
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  header h1 { margin: 0; font-size: 20px; letter-spacing: 1px; }
-  header a { color: var(--eisblau); text-decoration: none; font-weight: 600; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--hell); color: var(--anthrazit); }
+  header { background: var(--anthrazit); color: var(--hell); padding: 12px 16px; }
+  header h1 { margin: 0 0 8px; font-size: 19px; letter-spacing: 1px; }
+  nav { display: flex; gap: 14px; flex-wrap: wrap; }
+  nav a { color: var(--eisblau); text-decoration: none; font-weight: 600; font-size: 15px; }
   main { max-width: 760px; margin: 0 auto; padding: 16px; }
-  .karte {
-    background: var(--weiss);
-    border: 1px solid var(--silber);
-    border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 12px;
-  }
+  h2 { margin-top: 4px; }
+  h3 { margin: 22px 0 8px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+  .karte { background: var(--weiss); border: 1px solid var(--silber); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
   .zeile { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
   .klein { font-size: 13px; color: #555; }
-  .status { padding: 3px 10px; border-radius: 12px; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; }
-  .ueberfaellig { background: var(--rot); }
-  .bald { background: var(--gelb); }
-  .ok { background: var(--gruen); }
+  .marke { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .ueberfaellig { background: var(--rot); color: #fff; }
+  .bald { background: var(--gelb); color: #fff; }
+  .ok { background: var(--gruen); color: #fff; }
+  .grau { background: var(--silber); color: var(--anthrazit); }
+  .ausser-betrieb { background: var(--rot); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-weight: 600; }
+  .zahlen { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .zahlen div { flex: 1; min-width: 120px; text-align: center; padding: 10px; border-radius: 8px; color: #fff; font-weight: 600; }
   label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 14px; }
-  input, select, textarea {
-    width: 100%;
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid var(--silber);
-    border-radius: 6px;
-    background: var(--weiss);
-  }
-  button {
-    background: var(--anthrazit);
-    color: var(--hell);
-    border: 0;
-    border-radius: 6px;
-    padding: 10px 16px;
-    font-size: 15px;
-    cursor: pointer;
-    margin-top: 12px;
-  }
+  label.haken { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+  label.haken input { width: auto; }
+  input, select, textarea { width: 100%; padding: 10px; font-size: 16px; border: 1px solid var(--silber); border-radius: 6px; background: var(--weiss); }
+  button { background: var(--anthrazit); color: var(--hell); border: 0; border-radius: 6px; padding: 10px 16px; font-size: 15px; cursor: pointer; margin: 12px 6px 0 0; }
   button.zweit { background: var(--eisblau); color: var(--anthrazit); }
   button.loeschen { background: transparent; color: var(--rot); border: 1px solid var(--rot); }
-  a.geraet-link { color: var(--anthrazit); font-weight: 600; font-size: 17px; }
+  button.mini { padding: 4px 10px; font-size: 13px; margin: 0; }
+  a.titel { color: var(--anthrazit); font-weight: 600; font-size: 17px; }
   .hinweis { font-size: 12px; color: #666; text-align: center; padding: 20px 16px; }
   .leer { color: #666; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 14px; }
+  th, td { border: 1px solid var(--silber); padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: var(--hell); }
+  .qr-etikett { text-align: center; border: 2px dashed var(--silber); padding: 16px; break-inside: avoid; background: var(--weiss); }
+  .qr-etikett svg { width: 200px; height: 200px; }
+  .qr-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+
+  /* ===== Druckansicht (für PDF und QR-Etiketten) ===== */
+  @media print {
+    header, .nicht-drucken { display: none !important; }
+    body { background: #fff; }
+    main { max-width: none; padding: 0; }
+    .karte { border: 0; padding: 0; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>WARTUNGSBUCH</h1>
-  <a href="#/">Übersicht</a>
-  <a href="#/geraete">Geräte</a>
-  <a href="#/neu">+ Neues Gerät</a>
+  <nav>
+    <a href="#/">Übersicht</a>
+    <a href="#/geraete">Maschinen</a>
+    <a href="#/personal">Personal</a>
+    <a href="#/neu">+ Gerät</a>
+    <a href="#/sicherung">Sicherung</a>
+  </nav>
 </header>
 
 <main id="inhalt"></main>
 
 <p class="hinweis">
-  Diese Software dient nur der Planung und Dokumentation. Für Wartung, Prüfungen und Prüffristen ist allein der Betreiber verantwortlich.
+  Diese Software dient nur der Planung und Dokumentation. Für Wartung, Prüfungen, Unterweisungen und Fristen ist allein der Betreiber verantwortlich.
 </p>
 
 <script>
 /* =====================================================================
    SPEICHER
    Fürs Erste speichert der Browser alles selbst (localStorage).
-   Vergleich: wie ein Notizblock, der nur an diesem einen Rechner liegt.
-   Später kommt hier ein richtiger Server hin, damit alle im Betrieb
-   dieselben Daten sehen.
+   Vergleich: wie ein Notizblock, der nur an diesem einen Gerät liegt.
+   Stufe 2 ersetzt das durch einen Server.
    ===================================================================== */
 const SPEICHER_NAME = "wartungsbuch-daten";
 
 function ladeDaten() {
-  try {
-    return JSON.parse(localStorage.getItem(SPEICHER_NAME)) || { geraete: [] };
-  } catch (e) {
-    return { geraete: [] };
-  }
+  let d;
+  try { d = JSON.parse(localStorage.getItem(SPEICHER_NAME)) || {}; } catch (e) { d = {}; }
+  d.geraete = d.geraete || [];
+  d.mitarbeiter = d.mitarbeiter || [];
+  d.unterweisungen = d.unterweisungen || [];
+  return d;
 }
 
 function speichereDaten() {
@@ -119,10 +114,28 @@ function speichereDaten() {
 let daten = ladeDaten();
 
 /* =====================================================================
+   FESTE LISTEN
+   ===================================================================== */
+const KATEGORIEN = [
+  "Standmaschine",
+  "Fahrzeug",
+  "Ortsveränderliches Gerät",
+  "Erste Hilfe & Brandschutz",
+  "Gebäude & Sonstiges"
+];
+
+const INTERVALLE = [
+  ["täglich", 1], ["wöchentlich", 7], ["monatlich", 30],
+  ["vierteljährlich", 91], ["halbjährlich", 182], ["jährlich", 365],
+  ["alle 2 Jahre", 730], ["alle 4 Jahre", 1461]
+];
+
+// Ab wie vielen Prüfpunkten ein Gerät als Großgerät zählt (wichtig für die Preise später)
+const GROSSGERAET_AB = 6;
+
+/* =====================================================================
    HILFSFUNKTIONEN
    ===================================================================== */
-
-// Erzeugt eine eindeutige Nummer für jedes Gerät und jeden Prüfpunkt
 function neueId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -134,16 +147,19 @@ function sicher(text) {
   return div.innerHTML;
 }
 
-// Wählbare Intervalle (Anzeige-Name → Tage)
-const INTERVALLE = [
-  ["täglich", 1], ["wöchentlich", 7], ["monatlich", 30],
-  ["vierteljährlich", 91], ["halbjährlich", 182], ["jährlich", 365],
-  ["alle 2 Jahre", 730], ["alle 4 Jahre", 1461]
-];
+function wert(id) {
+  const feld = document.getElementById(id);
+  return feld ? feld.value.trim() : "";
+}
 
 function intervallName(tage) {
   const treffer = INTERVALLE.find(i => i[1] === tage);
   return treffer ? treffer[0] : "alle " + tage + " Tage";
+}
+
+function intervallAuswahl(id, vorwahl) {
+  return `<select id="${id}">${INTERVALLE.map(i =>
+    `<option value="${i[1]}" ${i[1] === vorwahl ? "selected" : ""}>${i[0]}</option>`).join("")}</select>`;
 }
 
 function heute() {
@@ -152,97 +168,176 @@ function heute() {
   return d;
 }
 
+// "2026-11-22" wird als Ortszeit gelesen, alles andere normal
+function zuDatum(s) {
+  const d = s.length === 10 ? new Date(s + "T00:00:00") : new Date(s);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function datumText(d) {
   return d.toLocaleDateString("de-DE");
 }
 
-// Rechnet aus, wann ein Prüfpunkt wieder dran ist
-function naechsteFaelligkeit(pp) {
-  if (pp.eintraege.length === 0) return heute(); // noch nie geprüft = sofort fällig
-  const letzter = new Date(pp.eintraege[pp.eintraege.length - 1].datum);
-  letzter.setHours(0, 0, 0, 0);
-  letzter.setDate(letzter.getDate() + pp.intervallTage);
-  return letzter;
+function heuteISO() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 
-// Ampel: rot = überfällig/heute, gelb = in 7 Tagen, grün = ok
-function status(pp) {
-  const faellig = naechsteFaelligkeit(pp);
+// Ampel für alles, was regelmäßig fällig wird (Prüfpunkt oder Unterweisung)
+function ampel(letztesDatum, intervallTage) {
+  let faellig;
+  if (!letztesDatum) {
+    faellig = heute(); // noch nie gemacht = sofort fällig
+  } else {
+    faellig = zuDatum(letztesDatum);
+    faellig.setDate(faellig.getDate() + intervallTage);
+  }
   const tage = Math.round((faellig - heute()) / 86400000);
-  if (tage <= 0) return { klasse: "ueberfaellig", text: tage < 0 ? "überfällig" : "heute fällig", tage };
+  if (tage < 0) return { klasse: "ueberfaellig", text: "überfällig seit " + datumText(faellig), tage };
+  if (tage === 0) return { klasse: "ueberfaellig", text: "heute fällig", tage };
   if (tage === 1) return { klasse: "bald", text: "morgen fällig", tage };
   if (tage <= 7) return { klasse: "bald", text: "in " + tage + " Tagen", tage };
   return { klasse: "ok", text: "ok bis " + datumText(faellig), tage };
 }
 
-function findeGeraet(id) {
-  return daten.geraete.find(g => g.id === id);
+function statusPruefpunkt(pp) {
+  const letzter = pp.eintraege[pp.eintraege.length - 1];
+  return ampel(letzter ? letzter.datum : null, pp.intervallTage);
+}
+
+function statusUnterweisung(u) {
+  const letzte = u.durchfuehrungen[u.durchfuehrungen.length - 1];
+  return ampel(letzte ? letzte.datum : null, u.intervallTage);
+}
+
+function marke(st) {
+  return `<span class="marke ${st.klasse}">${st.text}</span>`;
+}
+
+function groesse(g) {
+  return g.pruefpunkte.length >= GROSSGERAET_AB ? "Großgerät" : "Kleingerät";
+}
+
+function findeGeraet(id) { return daten.geraete.find(g => g.id === id); }
+function findeUnterweisung(id) { return daten.unterweisungen.find(u => u.id === id); }
+
+// Adresse, die im QR-Code steckt: führt direkt zum Gerät
+function geraetAdresse(g) {
+  return location.origin + location.pathname + "#/geraet/" + g.id;
+}
+
+function qrBild(text) {
+  if (typeof qrcode === "undefined") {
+    return `<p class="leer">QR-Code braucht beim ersten Mal Internet.</p>`;
+  }
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag(6, 2);
 }
 
 /* =====================================================================
    SEITEN
-   Die Adresse im Browser (#/...) bestimmt, welche Seite gezeigt wird.
-   Wichtig für später: Der QR-Code am Gerät führt direkt auf #/geraet/ID
+   Die Adresse (#/...) bestimmt, welche Seite gezeigt wird.
    ===================================================================== */
 const inhalt = document.getElementById("inhalt");
 
 function zeigeSeite() {
-  const teile = location.hash.replace("#/", "").split("/");
-  if (teile[0] === "geraete") return seiteGeraete();
-  if (teile[0] === "neu") return seiteNeu();
-  if (teile[0] === "geraet" && teile[1]) return seiteGeraet(teile[1]);
+  const [seite, id] = location.hash.replace("#/", "").split("/");
+  window.scrollTo(0, 0);
+  if (seite === "geraete") return seiteGeraete();
+  if (seite === "neu") return seiteNeu();
+  if (seite === "geraet" && id) return seiteGeraet(id);
+  if (seite === "qr" && id) return seiteQR(id);
+  if (seite === "qr-alle") return seiteQRAlle();
+  if (seite === "protokoll" && id) return seiteProtokoll(id);
+  if (seite === "personal") return seitePersonal();
+  if (seite === "unterweisung" && id) return seiteUnterweisung(id);
+  if (seite === "sicherung") return seiteSicherung();
   return seiteUebersicht();
 }
 
-// ---------- Übersicht: alles, was ansteht, das Dringendste oben ----------
+/* ---------- ÜBERSICHT: alles, was ansteht, das Dringendste oben ---------- */
 function seiteUebersicht() {
   const liste = [];
-  daten.geraete.forEach(g => g.pruefpunkte.forEach(pp => liste.push({ g, pp, st: status(pp) })));
+  daten.geraete.forEach(g => g.pruefpunkte.forEach(pp => liste.push({
+    link: "#/geraet/" + g.id, titel: g.name, text: pp.text,
+    unter: intervallName(pp.intervallTage) + (pp.wer ? " · " + pp.wer : ""), st: statusPruefpunkt(pp)
+  })));
+  daten.unterweisungen.forEach(u => liste.push({
+    link: "#/unterweisung/" + u.id, titel: "Unterweisung", text: u.thema,
+    unter: intervallName(u.intervallTage), st: statusUnterweisung(u)
+  }));
   liste.sort((a, b) => a.st.tage - b.st.tage);
 
-  if (liste.length === 0) {
+  const ausser = daten.geraete.filter(g => g.ausserBetrieb);
+  const rot = liste.filter(x => x.st.klasse === "ueberfaellig").length;
+  const gelb = liste.filter(x => x.st.klasse === "bald").length;
+  const gruen = liste.filter(x => x.st.klasse === "ok").length;
+
+  if (liste.length === 0 && ausser.length === 0) {
     inhalt.innerHTML = `
       <h2>Übersicht</h2>
       <div class="karte">
-        <p class="leer">Noch keine Geräte angelegt.</p>
+        <p class="leer">Noch nichts angelegt.</p>
         <a href="#/neu"><button>Erstes Gerät anlegen</button></a>
+        <a href="#/personal"><button class="zweit">Personal & Unterweisungen</button></a>
       </div>`;
     return;
   }
 
-  inhalt.innerHTML = "<h2>Übersicht</h2>" + liste.map(({ g, pp, st }) => `
-    <div class="karte zeile">
-      <div>
-        <a class="geraet-link" href="#/geraet/${g.id}">${sicher(g.name)}</a>
-        <div>${sicher(pp.text)}</div>
-        <div class="klein">${intervallName(pp.intervallTage)} · ${sicher(pp.wer)}</div>
-      </div>
-      <span class="status ${st.klasse}">${st.text}</span>
-    </div>`).join("");
-}
-
-// ---------- Geräteliste ----------
-function seiteGeraete() {
-  if (daten.geraete.length === 0) {
-    inhalt.innerHTML = `<h2>Geräte</h2><p class="leer">Noch keine Geräte.</p>`;
-    return;
-  }
-  inhalt.innerHTML = "<h2>Geräte</h2>" + daten.geraete.map(g => {
-    // schlechtester Status des Geräts zählt
-    const stati = g.pruefpunkte.map(status).sort((a, b) => a.tage - b.tage);
-    const st = stati[0];
-    return `
+  inhalt.innerHTML = `
+    <h2>Übersicht</h2>
+    <div class="zahlen">
+      <div class="ueberfaellig">${rot} fällig</div>
+      <div class="bald">${gelb} bald</div>
+      <div class="ok">${gruen} ok</div>
+    </div>
+    ${ausser.map(g => `<a href="#/geraet/${g.id}" style="text-decoration:none"><div class="ausser-betrieb">⛔ AUSSER BETRIEB: ${sicher(g.name)}</div></a>`).join("")}
+    ${liste.map(x => `
       <div class="karte zeile">
         <div>
-          <a class="geraet-link" href="#/geraet/${g.id}">${sicher(g.name)}</a>
-          <div class="klein">${sicher(g.kategorie)} · ${sicher(g.standort)} · ${g.pruefpunkte.length} Prüfpunkte</div>
+          <a class="titel" href="${x.link}">${sicher(x.titel)}</a>
+          <div>${sicher(x.text)}</div>
+          <div class="klein">${sicher(x.unter)}</div>
         </div>
-        ${st ? `<span class="status ${st.klasse}">${st.text}</span>` : ""}
-      </div>`;
-  }).join("");
+        ${marke(x.st)}
+      </div>`).join("")}`;
 }
 
-// ---------- Neues Gerät anlegen ----------
+/* ---------- MASCHINEN: nach Kategorien sortiert ---------- */
+function seiteGeraete() {
+  if (daten.geraete.length === 0) {
+    inhalt.innerHTML = `<h2>Maschinen & Geräte</h2><p class="leer">Noch keine Geräte.</p><a href="#/neu"><button>Gerät anlegen</button></a>`;
+    return;
+  }
+  const kategorien = [...new Set([...KATEGORIEN, ...daten.geraete.map(g => g.kategorie)])];
+  inhalt.innerHTML = `
+    <h2>Maschinen & Geräte</h2>
+    <a href="#/neu"><button>+ Gerät anlegen</button></a>
+    <a href="#/qr-alle"><button class="zweit">Alle QR-Codes drucken</button></a>
+    ${kategorien.map(k => {
+      const geraete = daten.geraete.filter(g => g.kategorie === k);
+      if (geraete.length === 0) return "";
+      return `<h3>${sicher(k)} (${geraete.length})</h3>` + geraete.map(g => {
+        const st = g.pruefpunkte.map(statusPruefpunkt).sort((a, b) => a.tage - b.tage)[0];
+        return `
+          <div class="karte zeile">
+            <div>
+              <a class="titel" href="#/geraet/${g.id}">${sicher(g.name)}</a>
+              <div class="klein">${sicher(g.standort)} · ${groesse(g)} · ${g.pruefpunkte.length} ${g.pruefpunkte.length === 1 ? "Prüfpunkt" : "Prüfpunkte"}</div>
+            </div>
+            <div>
+              ${g.ausserBetrieb ? `<span class="marke ueberfaellig">außer Betrieb</span>` : ""}
+              ${st ? marke(st) : `<span class="marke grau">keine Prüfpunkte</span>`}
+            </div>
+          </div>`;
+      }).join("");
+    }).join("")}`;
+}
+
+/* ---------- NEUES GERÄT ---------- */
 function seiteNeu() {
   inhalt.innerHTML = `
     <h2>Neues Gerät</h2>
@@ -250,84 +345,103 @@ function seiteNeu() {
       <label>Name des Geräts *</label>
       <input id="name" placeholder="z. B. Drehmaschine Halle 1">
       <label>Kategorie</label>
-      <input id="kategorie" placeholder="z. B. Standmaschine, Fahrzeug, Brandschutz">
+      <select id="kategorie">${KATEGORIEN.map(k => `<option>${k}</option>`).join("")}</select>
       <label>Standort</label>
       <input id="standort" placeholder="z. B. Halle 1">
-      <label>Hersteller / Typ / Seriennummer</label>
+      <label>Hersteller / Typ</label>
       <input id="typ" placeholder="optional">
+      <label>Seriennummer / Inventarnummer</label>
+      <input id="nummer" placeholder="optional">
       <button onclick="geraetSpeichern()">Gerät anlegen</button>
     </div>`;
 }
 
 function geraetSpeichern() {
-  const name = document.getElementById("name").value.trim();
+  const name = wert("name");
   if (!name) { alert("Bitte einen Namen eingeben."); return; }
   const g = {
-    id: neueId(),
-    name,
-    kategorie: document.getElementById("kategorie").value.trim(),
-    standort: document.getElementById("standort").value.trim(),
-    typ: document.getElementById("typ").value.trim(),
-    pruefpunkte: []
+    id: neueId(), name,
+    kategorie: wert("kategorie"), standort: wert("standort"),
+    typ: wert("typ"), nummer: wert("nummer"),
+    ausserBetrieb: false, pruefpunkte: []
   };
   daten.geraete.push(g);
   speichereDaten();
-  location.hash = "#/geraet/" + g.id; // direkt zum Gerät, um Prüfpunkte einzutragen
+  location.hash = "#/geraet/" + g.id;
 }
 
-// ---------- Ein Gerät: Prüfpunkte, abhaken, Verlauf ----------
+/* ---------- EIN GERÄT: Prüfpunkte, abhaken, Verlauf ---------- */
 function seiteGeraet(id) {
   const g = findeGeraet(id);
-  if (!g) { inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden.</p>`; return; }
+  if (!g) {
+    inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden. (Hinweis: Bis zu Stufe 2 sind die Daten nur auf dem Gerät gespeichert, auf dem sie eingetragen wurden.)</p>`;
+    return;
+  }
 
   const punkte = g.pruefpunkte.map(pp => {
-    const st = status(pp);
     const verlauf = pp.eintraege.slice().reverse().slice(0, 5).map(e => `
-      <div class="klein">${datumText(new Date(e.datum))} · ${sicher(e.pruefer)} · ${e.ergebnis === "ok" ? "in Ordnung" : "MANGEL"}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
+      <div class="klein">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${e.ergebnis === "ok" ? "in Ordnung" : "<b>MANGEL</b>"}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
     return `
       <div class="karte">
         <div class="zeile">
           <strong>${sicher(pp.text)}</strong>
-          <span class="status ${st.klasse}">${st.text}</span>
+          ${marke(statusPruefpunkt(pp))}
         </div>
-        <div class="klein">${intervallName(pp.intervallTage)} · ${sicher(pp.wer)}</div>
+        <div class="klein">
+          ${intervallName(pp.intervallTage)}${pp.wer ? " · " + sicher(pp.wer) : ""}
+          ${pp.pflicht ? ` · <b>Pflichtprüfung</b>` : ""}${pp.rechtsgrundlage ? " (" + sicher(pp.rechtsgrundlage) + ")" : ""}
+        </div>
         <label>Geprüft von</label>
         <input id="pruefer-${pp.id}" placeholder="Name">
         <label>Bemerkung</label>
-        <input id="bem-${pp.id}" placeholder="optional">
+        <input id="bem-${pp.id}" placeholder="optional, bei Mangel bitte beschreiben">
         <button onclick="abhaken('${g.id}','${pp.id}','ok')">✓ In Ordnung</button>
         <button class="zweit" onclick="abhaken('${g.id}','${pp.id}','mangel')">⚠ Mangel</button>
         ${verlauf ? `<label>Letzte Prüfungen</label>${verlauf}` : ""}
+        <div style="text-align:right"><button class="loeschen mini" onclick="pruefpunktLoeschen('${g.id}','${pp.id}')">Prüfpunkt löschen</button></div>
       </div>`;
   }).join("");
 
   inhalt.innerHTML = `
     <h2>${sicher(g.name)}</h2>
-    <p class="klein">${sicher(g.kategorie)} · ${sicher(g.standort)} ${g.typ ? "· " + sicher(g.typ) : ""}</p>
+    <p class="klein">
+      ${sicher(g.kategorie)} · ${sicher(g.standort)} · ${groesse(g)}
+      ${g.typ ? "<br>Typ: " + sicher(g.typ) : ""}${g.nummer ? "<br>Nr.: " + sicher(g.nummer) : ""}
+    </p>
+    ${g.ausserBetrieb ? `
+      <div class="ausser-betrieb">
+        ⛔ AUSSER BETRIEB – nicht benutzen!
+        <br><button class="mini zweit" onclick="wiederInBetrieb('${g.id}')">Mangel behoben, wieder in Betrieb nehmen</button>
+      </div>` : ""}
+    <a href="#/qr/${g.id}"><button class="zweit">QR-Code</button></a>
+    <a href="#/protokoll/${g.id}"><button class="zweit">Prüfprotokoll (PDF)</button></a>
+    <h3>Prüfpunkte</h3>
     ${punkte || `<p class="leer">Noch keine Prüfpunkte. Leg unten den ersten an.</p>`}
     <div class="karte">
       <strong>Neuer Prüfpunkt</strong>
       <label>Was wird geprüft? *</label>
       <input id="pp-text" placeholder="z. B. Not-Aus testen">
       <label>Wie oft?</label>
-      <select id="pp-intervall">
-        ${INTERVALLE.map(i => `<option value="${i[1]}">${i[0]}</option>`).join("")}
-      </select>
+      ${intervallAuswahl("pp-intervall", 365)}
       <label>Wer prüft?</label>
       <input id="pp-wer" placeholder="z. B. Bediener, Elektrofachkraft, externe Firma">
+      <label class="haken"><input type="checkbox" id="pp-pflicht"> Gesetzliche Pflichtprüfung (z. B. DGUV, UVV)</label>
+      <label>Rechtsgrundlage</label>
+      <input id="pp-recht" placeholder="optional, z. B. DGUV Vorschrift 3">
       <button onclick="pruefpunktSpeichern('${g.id}')">Prüfpunkt hinzufügen</button>
     </div>
     <button class="loeschen" onclick="geraetLoeschen('${g.id}')">Gerät löschen</button>`;
 }
 
 function pruefpunktSpeichern(geraetId) {
-  const text = document.getElementById("pp-text").value.trim();
+  const text = wert("pp-text");
   if (!text) { alert("Bitte eingeben, was geprüft wird."); return; }
   findeGeraet(geraetId).pruefpunkte.push({
-    id: neueId(),
-    text,
-    intervallTage: Number(document.getElementById("pp-intervall").value),
-    wer: document.getElementById("pp-wer").value.trim(),
+    id: neueId(), text,
+    intervallTage: Number(wert("pp-intervall")),
+    wer: wert("pp-wer"),
+    pflicht: document.getElementById("pp-pflicht").checked,
+    rechtsgrundlage: wert("pp-recht"),
     eintraege: []
   });
   speichereDaten();
@@ -335,15 +449,29 @@ function pruefpunktSpeichern(geraetId) {
 }
 
 function abhaken(geraetId, ppId, ergebnis) {
-  const pruefer = document.getElementById("pruefer-" + ppId).value.trim();
+  const pruefer = wert("pruefer-" + ppId);
   if (!pruefer) { alert("Bitte eintragen, wer geprüft hat."); return; }
-  const pp = findeGeraet(geraetId).pruefpunkte.find(p => p.id === ppId);
-  pp.eintraege.push({
-    datum: new Date().toISOString(),
-    pruefer,
-    ergebnis,
-    bemerkung: document.getElementById("bem-" + ppId).value.trim()
+  const g = findeGeraet(geraetId);
+  g.pruefpunkte.find(p => p.id === ppId).eintraege.push({
+    datum: new Date().toISOString(), pruefer, ergebnis, bemerkung: wert("bem-" + ppId)
   });
+  if (ergebnis === "mangel" && !g.ausserBetrieb && confirm("Mangel gespeichert. Gerät außer Betrieb setzen?")) {
+    g.ausserBetrieb = true;
+  }
+  speichereDaten();
+  seiteGeraet(geraetId);
+}
+
+function wiederInBetrieb(geraetId) {
+  findeGeraet(geraetId).ausserBetrieb = false;
+  speichereDaten();
+  seiteGeraet(geraetId);
+}
+
+function pruefpunktLoeschen(geraetId, ppId) {
+  if (!confirm("Prüfpunkt mit allen Einträgen löschen?")) return;
+  const g = findeGeraet(geraetId);
+  g.pruefpunkte = g.pruefpunkte.filter(p => p.id !== ppId);
   speichereDaten();
   seiteGeraet(geraetId);
 }
@@ -353,6 +481,236 @@ function geraetLoeschen(geraetId) {
   daten.geraete = daten.geraete.filter(g => g.id !== geraetId);
   speichereDaten();
   location.hash = "#/geraete";
+}
+
+/* ---------- QR-CODES ---------- */
+function etikett(g) {
+  return `
+    <div class="qr-etikett">
+      <strong>${sicher(g.name)}</strong><br>
+      <span class="klein">${sicher(g.standort)}${g.nummer ? " · " + sicher(g.nummer) : ""}</span><br>
+      ${qrBild(geraetAdresse(g))}<br>
+      <span class="klein">Scannen → Wartung eintragen</span>
+    </div>`;
+}
+
+function seiteQR(id) {
+  const g = findeGeraet(id);
+  if (!g) { inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden.</p>`; return; }
+  inhalt.innerHTML = `
+    <div class="nicht-drucken">
+      <a href="#/geraet/${g.id}">← zurück zum Gerät</a>
+      <p class="klein">Ausdrucken und gut sichtbar an das Gerät kleben. Beim Scannen öffnet sich direkt dieses Gerät.</p>
+      <button onclick="window.print()">Drucken</button>
+    </div>
+    <div style="max-width:300px;margin:16px auto">${etikett(g)}</div>`;
+}
+
+function seiteQRAlle() {
+  inhalt.innerHTML = `
+    <div class="nicht-drucken">
+      <h2>Alle QR-Codes</h2>
+      <button onclick="window.print()">Alle drucken</button>
+    </div>
+    <div class="qr-raster" style="margin-top:12px">${daten.geraete.map(etikett).join("") || `<p class="leer">Noch keine Geräte.</p>`}</div>`;
+}
+
+/* ---------- PRÜFPROTOKOLL (Drucken → "Als PDF speichern") ---------- */
+function seiteProtokoll(id) {
+  const g = findeGeraet(id);
+  if (!g) { inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden.</p>`; return; }
+  inhalt.innerHTML = `
+    <div class="nicht-drucken">
+      <a href="#/geraet/${g.id}">← zurück zum Gerät</a>
+      <p class="klein">Tipp: Im Druckfenster als Drucker "Als PDF speichern" wählen.</p>
+      <button onclick="window.print()">Drucken / als PDF speichern</button>
+    </div>
+    <div class="karte">
+      <h2>Prüfprotokoll: ${sicher(g.name)}</h2>
+      <table>
+        <tr><th>Kategorie</th><td>${sicher(g.kategorie)}</td><th>Standort</th><td>${sicher(g.standort)}</td></tr>
+        <tr><th>Typ</th><td>${sicher(g.typ)}</td><th>Nummer</th><td>${sicher(g.nummer)}</td></tr>
+        <tr><th>Status</th><td colspan="3">${g.ausserBetrieb ? "<b>AUSSER BETRIEB</b>" : "in Betrieb"}</td></tr>
+      </table>
+      ${g.pruefpunkte.map(pp => `
+        <h3>${sicher(pp.text)}</h3>
+        <div class="klein">
+          Intervall: ${intervallName(pp.intervallTage)}${pp.wer ? " · Prüfer: " + sicher(pp.wer) : ""}
+          ${pp.pflicht ? " · Pflichtprüfung" : ""}${pp.rechtsgrundlage ? " · " + sicher(pp.rechtsgrundlage) : ""}
+          · Status: ${statusPruefpunkt(pp).text}
+        </div>
+        <table>
+          <tr><th>Datum</th><th>Geprüft von</th><th>Ergebnis</th><th>Bemerkung</th></tr>
+          ${pp.eintraege.slice().reverse().map(e => `
+            <tr><td>${datumText(zuDatum(e.datum))}</td><td>${sicher(e.pruefer)}</td>
+            <td>${e.ergebnis === "ok" ? "in Ordnung" : "MANGEL"}</td><td>${sicher(e.bemerkung)}</td></tr>`).join("")
+            || `<tr><td colspan="4">noch keine Prüfung</td></tr>`}
+        </table>`).join("") || `<p class="leer">Keine Prüfpunkte.</p>`}
+      <p class="klein">Erstellt am ${datumText(new Date())} mit Wartungsbuch. Für Wartung und Prüfungen ist allein der Betreiber verantwortlich.</p>
+    </div>`;
+}
+
+/* ---------- PERSONAL: Mitarbeiter und Unterweisungen ---------- */
+function seitePersonal() {
+  inhalt.innerHTML = `
+    <h2>Personal & Unterweisungen</h2>
+    <p class="klein">Datenschutz: Namen bleiben bis Stufe 2 nur auf diesem Gerät gespeichert.</p>
+
+    <h3>Unterweisungen</h3>
+    ${daten.unterweisungen.map(u => `
+      <div class="karte zeile">
+        <div>
+          <a class="titel" href="#/unterweisung/${u.id}">${sicher(u.thema)}</a>
+          <div class="klein">${intervallName(u.intervallTage)} · ${u.durchfuehrungen.length} mal durchgeführt</div>
+        </div>
+        ${marke(statusUnterweisung(u))}
+      </div>`).join("") || `<p class="leer">Noch keine Unterweisungen.</p>`}
+    <div class="karte">
+      <strong>Neue Unterweisung</strong>
+      <label>Thema *</label>
+      <input id="u-thema" placeholder="z. B. Gabelstapler, Brandschutz, Erste Hilfe">
+      <label>Wie oft?</label>
+      ${intervallAuswahl("u-intervall", 365)}
+      <label>Link zu Unterlagen</label>
+      <input id="u-link" placeholder="optional, z. B. Unterweisung der Berufsgenossenschaft">
+      <button onclick="unterweisungSpeichern()">Unterweisung anlegen</button>
+    </div>
+
+    <h3>Mitarbeiter (${daten.mitarbeiter.length})</h3>
+    <div class="karte">
+      ${daten.mitarbeiter.map(m => `
+        <div class="zeile" style="margin-bottom:6px">
+          <span>${sicher(m.name)}</span>
+          <button class="loeschen mini" onclick="mitarbeiterLoeschen('${m.id}')">entfernen</button>
+        </div>`).join("") || `<p class="leer">Noch keine Mitarbeiter.</p>`}
+      <label>Neuer Mitarbeiter</label>
+      <input id="m-name" placeholder="Vor- und Nachname">
+      <button onclick="mitarbeiterSpeichern()">Hinzufügen</button>
+    </div>`;
+}
+
+function mitarbeiterSpeichern() {
+  const name = wert("m-name");
+  if (!name) { alert("Bitte einen Namen eingeben."); return; }
+  daten.mitarbeiter.push({ id: neueId(), name });
+  speichereDaten();
+  seitePersonal();
+}
+
+function mitarbeiterLoeschen(id) {
+  if (!confirm("Mitarbeiter entfernen? Frühere Unterweisungen bleiben dokumentiert.")) return;
+  daten.mitarbeiter = daten.mitarbeiter.filter(m => m.id !== id);
+  speichereDaten();
+  seitePersonal();
+}
+
+function unterweisungSpeichern() {
+  const thema = wert("u-thema");
+  if (!thema) { alert("Bitte ein Thema eingeben."); return; }
+  const u = { id: neueId(), thema, intervallTage: Number(wert("u-intervall")), link: wert("u-link"), durchfuehrungen: [] };
+  daten.unterweisungen.push(u);
+  speichereDaten();
+  location.hash = "#/unterweisung/" + u.id;
+}
+
+function seiteUnterweisung(id) {
+  const u = findeUnterweisung(id);
+  if (!u) { inhalt.innerHTML = `<p class="leer">Unterweisung nicht gefunden.</p>`; return; }
+
+  // Wer fehlt bei der letzten Durchführung?
+  const letzte = u.durchfuehrungen[u.durchfuehrungen.length - 1];
+  const fehlen = letzte ? daten.mitarbeiter.filter(m => !letzte.teilnehmer.includes(m.name)) : [];
+  const sichererLink = /^https?:\/\//i.test(u.link) ? u.link : "";
+
+  inhalt.innerHTML = `
+    <a href="#/personal">← Personal</a>
+    <h2>Unterweisung: ${sicher(u.thema)}</h2>
+    <p>${marke(statusUnterweisung(u))} <span class="klein">${intervallName(u.intervallTage)}</span></p>
+    ${sichererLink ? `<p><a href="${sicher(sichererLink)}" target="_blank" rel="noopener">Unterlagen öffnen ↗</a></p>` : ""}
+    ${fehlen.length ? `<div class="karte"><strong>Fehlten beim letzten Mal:</strong> ${fehlen.map(m => sicher(m.name)).join(", ")}</div>` : ""}
+
+    <div class="karte">
+      <strong>Unterweisung durchgeführt</strong>
+      <label>Datum</label>
+      <input type="date" id="d-datum" value="${heuteISO()}">
+      <label>Durchgeführt von</label>
+      <input id="d-leiter" placeholder="Name">
+      <label>Teilnehmer</label>
+      ${daten.mitarbeiter.map(m => `
+        <label class="haken"><input type="checkbox" class="teilnehmer" value="${sicher(m.name)}"> ${sicher(m.name)}</label>`).join("")
+        || `<p class="leer">Erst unter "Personal" Mitarbeiter anlegen.</p>`}
+      <button onclick="durchfuehrungSpeichern('${u.id}')">Speichern</button>
+    </div>
+
+    <h3>Verlauf</h3>
+    ${u.durchfuehrungen.slice().reverse().map(d => `
+      <div class="karte">
+        <strong>${datumText(zuDatum(d.datum))}</strong> · durchgeführt von ${sicher(d.leiter)}
+        <div class="klein">Teilnehmer: ${d.teilnehmer.map(sicher).join(", ")}</div>
+      </div>`).join("") || `<p class="leer">Noch nie durchgeführt.</p>`}
+    <button class="loeschen" onclick="unterweisungLoeschen('${u.id}')">Unterweisung löschen</button>`;
+}
+
+function durchfuehrungSpeichern(id) {
+  const leiter = wert("d-leiter");
+  const datum = wert("d-datum");
+  const teilnehmer = [...document.querySelectorAll(".teilnehmer:checked")].map(c => c.value);
+  if (!leiter || !datum) { alert("Bitte Datum und Namen eintragen."); return; }
+  if (teilnehmer.length === 0) { alert("Bitte mindestens einen Teilnehmer abhaken."); return; }
+  const u = findeUnterweisung(id);
+  u.durchfuehrungen.push({ datum, leiter, teilnehmer });
+  u.durchfuehrungen.sort((a, b) => a.datum.localeCompare(b.datum)); // nachgetragene Termine richtig einsortieren
+  speichereDaten();
+  seiteUnterweisung(id);
+}
+
+function unterweisungLoeschen(id) {
+  if (!confirm("Unterweisung mit allen Nachweisen löschen?")) return;
+  daten.unterweisungen = daten.unterweisungen.filter(u => u.id !== id);
+  speichereDaten();
+  location.hash = "#/personal";
+}
+
+/* ---------- SICHERUNG: alles als Datei speichern und laden ---------- */
+function seiteSicherung() {
+  inhalt.innerHTML = `
+    <h2>Datensicherung</h2>
+    <div class="karte">
+      <p>Deine Daten liegen nur auf diesem Gerät. Speichere regelmäßig eine Sicherung, z. B. einmal pro Woche.</p>
+      <button onclick="sicherungSpeichern()">Sicherung herunterladen</button>
+    </div>
+    <div class="karte">
+      <p>Sicherung laden: <b>ersetzt</b> alle Daten auf diesem Gerät. So kannst du auch Daten vom PC aufs Handy übertragen.</p>
+      <input type="file" id="datei" accept=".json,application/json">
+      <button class="zweit" onclick="sicherungLaden()">Sicherung laden</button>
+    </div>`;
+}
+
+function sicherungSpeichern() {
+  const blob = new Blob([JSON.stringify(daten, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wartungsbuch-sicherung-" + heuteISO() + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function sicherungLaden() {
+  const datei = document.getElementById("datei").files[0];
+  if (!datei) { alert("Bitte zuerst eine Sicherungsdatei auswählen."); return; }
+  const leser = new FileReader();
+  leser.onload = () => {
+    let neu;
+    try { neu = JSON.parse(leser.result); } catch (e) { neu = null; }
+    if (!neu || !Array.isArray(neu.geraete)) { alert("Das ist keine gültige Wartungsbuch-Sicherung."); return; }
+    if (!confirm("Alle Daten auf diesem Gerät durch die Sicherung ersetzen?")) return;
+    localStorage.setItem(SPEICHER_NAME, JSON.stringify(neu));
+    daten = ladeDaten();
+    alert("Sicherung geladen.");
+    location.hash = "#/";
+    zeigeSeite();
+  };
+  leser.readAsText(datei);
 }
 
 /* ===== Start ===== */
