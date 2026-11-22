@@ -128,6 +128,26 @@
   .formular .zeile-knoepfe a { color: #5b6168; text-decoration: none; margin-top: 14px; font-weight: 500; }
   .gefahr { margin-top: 26px; text-align: center; }
 
+  /* ----- Etappe 3: Personal, Unterweisung, Sicherung ----- */
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: rgba(168, 196, 212, .35); color: #2f5368; display: grid; place-items: center; font-weight: 600; font-size: 14px; flex: none; }
+  .person { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rand); }
+  .person:last-of-type { border-bottom: 0; }
+  .person span.name { flex: 1; font-weight: 500; }
+  .neue-person { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px; }
+  .neue-person > div { flex: 1; min-width: 200px; }
+  .neue-person button { margin: 0; }
+  .teil-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 6px; }
+  .teil-grid label.haken { background: #f6f7f8; border: 1px solid var(--rand); border-radius: 12px; padding: 11px 12px; margin: 0; cursor: pointer; font-weight: 500; }
+  .teil-grid label.haken input { width: 18px; height: 18px; }
+  .info-karte { background: rgba(168, 196, 212, .22); border: 1px solid rgba(111, 152, 174, .35); border-radius: 14px; padding: 12px 16px; font-size: 14.5px; color: #2f4757; margin-bottom: 16px; }
+  .fehlt { background: #fff6e0; border: 1px solid #f0d9a0; border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; font-size: 14.5px; }
+  .karte ol { padding-left: 22px; margin: 4px 0 8px; }
+  .karte ol li { margin-bottom: 10px; }
+  .abschnitt-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .abschnitt-kopf .icon-kreis { width: 42px; height: 42px; }
+  .abschnitt-kopf b { display: block; font-size: 17px; }
+  .abschnitt-kopf span { color: #5b6168; font-size: 14px; }
+
   /* ----- Willkommen (leerer Start) ----- */
   .willkommen { text-align: center; padding: 34px 22px 28px; }
   .willkommen h2 { font-size: 28px; margin-bottom: 10px; }
@@ -727,41 +747,49 @@ function seiteProtokoll(id) {
 }
 
 /* ---------- PERSONAL: Mitarbeiter und Unterweisungen ---------- */
+function initialen(name) {
+  const t = (name || "?").trim().split(/\s+/);
+  return ((t[0] || "?")[0] + (t.length > 1 ? t[t.length - 1][0] : "")).toUpperCase();
+}
+
 function seitePersonal() {
   inhalt.innerHTML = `
     <h2>Personal & Unterweisungen</h2>
-    <p class="klein" style="margin-top:-8px">Datenschutz: Namen bleiben bis Stufe 2 nur auf diesem Gerät gespeichert.</p>
+    <div class="info-karte">Datenschutz: Namen bleiben bis zur nächsten Version nur auf diesem Gerät gespeichert.</div>
 
-    <h3>Unterweisungen</h3>
+    <h3>Unterweisungen (${daten.unterweisungen.length})</h3>
     ${daten.unterweisungen.map(u => `
-      <div class="karte zeile">
-        <div>
-          <a class="titel" href="#/unterweisung/${u.id}">${sicher(u.thema)}</a>
+      <a class="karte geraet-zeile" href="#/unterweisung/${u.id}">
+        <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg></div>
+        <div class="mitte">
+          <b class="titel-fett">${sicher(u.thema)}</b>
           <div class="klein">${intervallName(u.intervallTage)} · ${u.durchfuehrungen.length} mal durchgeführt</div>
         </div>
-        ${marke(statusUnterweisung(u))}
-      </div>`).join("") || `<p class="leer">Noch keine Unterweisungen.</p>`}
-    <div class="karte">
-      <strong>Neue Unterweisung</strong>
-      <label>Thema *</label>
+        <div class="rechts">${marke(statusUnterweisung(u))}</div>
+      </a>`).join("") || `<div class="karte leer-karte"><p><b>Noch keine Unterweisungen.</b></p><p>Lege unten die erste an, zum Beispiel Brandschutz oder Gabelstapler.</p></div>`}
+    <details class="neu" ${daten.unterweisungen.length === 0 ? "open" : ""}>
+      <summary>Neue Unterweisung</summary>
+      <label style="margin-top:0">Thema *</label>
       <input id="u-thema" placeholder="z. B. Gabelstapler, Brandschutz, Erste Hilfe">
-      <label>Wie oft?</label>
-      ${intervallAuswahl("u-intervall", 365)}
-      <label>Link zu Unterlagen</label>
-      <input id="u-link" placeholder="optional, z. B. Unterweisung der Berufsgenossenschaft">
+      <div class="felder">
+        <div><label>Wie oft?</label>${intervallAuswahl("u-intervall", 365)}</div>
+        <div><label>Link zu Unterlagen</label><input id="u-link" placeholder="optional, z. B. Berufsgenossenschaft"></div>
+      </div>
       <button onclick="unterweisungSpeichern()">Unterweisung anlegen</button>
-    </div>
+    </details>
 
     <h3>Mitarbeiter (${daten.mitarbeiter.length})</h3>
     <div class="karte">
       ${daten.mitarbeiter.map(m => `
-        <div class="zeile" style="margin-bottom:6px">
-          <span>${sicher(m.name)}</span>
+        <div class="person">
+          <div class="avatar">${sicher(initialen(m.name))}</div>
+          <span class="name">${sicher(m.name)}</span>
           <button class="loeschen mini" onclick="mitarbeiterLoeschen('${m.id}')">entfernen</button>
-        </div>`).join("") || `<p class="leer">Noch keine Mitarbeiter.</p>`}
-      <label>Neuer Mitarbeiter</label>
-      <input id="m-name" placeholder="Vor- und Nachname">
-      <button onclick="mitarbeiterSpeichern()">Hinzufügen</button>
+        </div>`).join("") || `<p class="leer" style="margin-top:0">Noch keine Mitarbeiter angelegt.</p>`}
+      <div class="neue-person">
+        <div><label>Neuer Mitarbeiter</label><input id="m-name" placeholder="Vor- und Nachname"></div>
+        <button onclick="mitarbeiterSpeichern()">Hinzufügen</button>
+      </div>
     </div>`;
 }
 
@@ -799,32 +827,37 @@ function seiteUnterweisung(id) {
   const sichererLink = /^https?:\/\//i.test(u.link) ? u.link : "";
 
   inhalt.innerHTML = `
-    <a href="#/personal">← Personal</a>
-    <h2>Unterweisung: ${sicher(u.thema)}</h2>
-    <p>${marke(statusUnterweisung(u))} <span class="klein">${intervallName(u.intervallTage)}</span></p>
-    ${sichererLink ? `<p><a href="${sicher(sichererLink)}" target="_blank" rel="noopener">Unterlagen öffnen ↗</a></p>` : ""}
-    ${fehlen.length ? `<div class="karte"><strong>Fehlten beim letzten Mal:</strong> ${fehlen.map(m => sicher(m.name)).join(", ")}</div>` : ""}
+    <a class="zurueck" href="#/personal">← Personal</a>
+    <h2>${sicher(u.thema)}</h2>
+    <div class="chips">
+      ${marke(statusUnterweisung(u))}
+      <span class="chip">${intervallName(u.intervallTage)}</span>
+      ${sichererLink ? `<a class="chip" style="text-decoration:none" href="${sicher(sichererLink)}" target="_blank" rel="noopener">Unterlagen öffnen ↗</a>` : ""}
+    </div>
+    ${fehlen.length ? `<div class="fehlt"><strong>Fehlten beim letzten Mal:</strong> ${fehlen.map(m => sicher(m.name)).join(", ")}</div>` : ""}
 
-    <div class="karte">
-      <strong>Unterweisung durchgeführt</strong>
-      <label>Datum</label>
-      <input type="date" id="d-datum" value="${heuteISO()}">
-      <label>Durchgeführt von</label>
-      <input id="d-leiter" placeholder="Name">
+    <div class="karte formular">
+      <strong style="font-size:17px">Unterweisung durchgeführt</strong>
+      <div class="felder">
+        <div><label>Datum</label><input type="date" id="d-datum" value="${heuteISO()}"></div>
+        <div><label>Durchgeführt von</label><input id="d-leiter" placeholder="Name"></div>
+      </div>
       <label>Teilnehmer</label>
-      ${daten.mitarbeiter.map(m => `
-        <label class="haken"><input type="checkbox" class="teilnehmer" value="${sicher(m.name)}"> ${sicher(m.name)}</label>`).join("")
-        || `<p class="leer">Erst unter "Personal" Mitarbeiter anlegen.</p>`}
+      <div class="teil-grid">
+        ${daten.mitarbeiter.map(m => `
+          <label class="haken"><input type="checkbox" class="teilnehmer" value="${sicher(m.name)}"> ${sicher(m.name)}</label>`).join("")
+          || `<p class="leer">Erst unter "Personal" Mitarbeiter anlegen.</p>`}
+      </div>
       <button onclick="durchfuehrungSpeichern('${u.id}')">Speichern</button>
     </div>
 
     <h3>Verlauf</h3>
     ${u.durchfuehrungen.slice().reverse().map(d => `
-      <div class="karte">
+      <div class="karte rand-ok">
         <strong>${datumText(zuDatum(d.datum))}</strong> · durchgeführt von ${sicher(d.leiter)}
         <div class="klein">Teilnehmer: ${d.teilnehmer.map(sicher).join(", ")}</div>
-      </div>`).join("") || `<p class="leer">Noch nie durchgeführt.</p>`}
-    <button class="loeschen" onclick="unterweisungLoeschen('${u.id}')">Unterweisung löschen</button>`;
+      </div>`).join("") || `<div class="karte leer-karte"><p>Noch nie durchgeführt.</p></div>`}
+    <div class="gefahr"><button class="loeschen" onclick="unterweisungLoeschen('${u.id}')">Unterweisung löschen</button></div>`;
 }
 
 function durchfuehrungSpeichern(id) {
@@ -850,14 +883,22 @@ function unterweisungLoeschen(id) {
 /* ---------- SICHERUNG: alles als Datei speichern und laden ---------- */
 function seiteSicherung() {
   inhalt.innerHTML = `
+    <a class="zurueck" href="#/mehr">← Mehr</a>
     <h2>Datensicherung</h2>
+    <div class="info-karte">Deine Daten liegen nur auf diesem Gerät. Speichere regelmäßig eine Sicherung, zum Beispiel einmal pro Woche.</div>
     <div class="karte">
-      <p>Deine Daten liegen nur auf diesem Gerät. Speichere regelmäßig eine Sicherung, z. B. einmal pro Woche.</p>
+      <div class="abschnitt-kopf">
+        <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></div>
+        <div><b>Sicherung speichern</b><span>Alle Daten als Datei herunterladen</span></div>
+      </div>
       <button onclick="sicherungSpeichern()">Sicherung herunterladen</button>
     </div>
     <div class="karte">
-      <p>Sicherung laden: <b>ersetzt</b> alle Daten auf diesem Gerät. So kannst du auch Daten vom PC aufs Handy übertragen.</p>
-      <input type="file" id="datei" accept=".json,application/json">
+      <div class="abschnitt-kopf">
+        <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M12 20V9M7 13l5-5 5 5M5 4h14"/></svg></div>
+        <div><b>Sicherung laden</b><span>Ersetzt alle Daten auf diesem Gerät. So bekommst du Daten vom PC aufs Handy.</span></div>
+      </div>
+      <input type="file" id="datei" accept=".json,application/json" style="margin-top:12px">
       <button class="zweit" onclick="sicherungLaden()">Sicherung laden</button>
     </div>`;
 }
@@ -965,6 +1006,7 @@ function seiteInstallieren() {
   }
 
   inhalt.innerHTML = `
+    <a class="zurueck nicht-drucken" href="#/mehr">← Mehr</a>
     <h2>App installieren</h2>
     <div class="karte nicht-drucken">${anleitung}</div>
     <h3 class="nicht-drucken">QR-Code zum Weitergeben</h3>
