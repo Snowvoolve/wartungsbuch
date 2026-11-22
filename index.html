@@ -350,7 +350,20 @@ function ampel(letztesDatum, intervallTage) {
 
 function statusPruefpunkt(pp) {
   const letzter = pp.eintraege[pp.eintraege.length - 1];
+  // Offener Mangel bleibt rot, bis er behoben oder wieder als "in Ordnung" geprüft ist
+  if (letzter && letzter.ergebnis === "mangel") return { klasse: "ueberfaellig", text: "Mangel offen", tage: -99999 };
   return ampel(letzter ? letzter.datum : null, pp.intervallTage);
+}
+
+function mangelOffen(pp) {
+  const letzter = pp.eintraege[pp.eintraege.length - 1];
+  return !!letzter && letzter.ergebnis === "mangel";
+}
+
+function ergebnisText(e, fett) {
+  if (e.ergebnis === "ok") return "in Ordnung";
+  if (e.ergebnis === "behoben") return "Mangel behoben";
+  return fett ? "<b>MANGEL</b>" : "MANGEL";
 }
 
 function statusUnterweisung(u) {
@@ -640,7 +653,7 @@ function seiteGeraet(id) {
   const punkte = g.pruefpunkte.map(pp => {
     const st = statusPruefpunkt(pp);
     const verlauf = pp.eintraege.slice().reverse().slice(0, 5).map(e => `
-      <div class="verlauf-zeile">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${e.ergebnis === "ok" ? "in Ordnung" : "<b>MANGEL</b>"}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
+      <div class="verlauf-zeile">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${ergebnisText(e, true)}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
     return `
       <div class="karte rand-${st.klasse}">
         <div class="punkt-kopf">
@@ -657,6 +670,7 @@ function seiteGeraet(id) {
         </div>
         <button class="gruen" onclick="abhaken('${g.id}','${pp.id}','ok')">✓ In Ordnung</button>
         <button class="warn" onclick="abhaken('${g.id}','${pp.id}','mangel')">⚠ Mangel melden</button>
+        ${mangelOffen(pp) ? `<button class="zweit" onclick="wiederInBetrieb('${g.id}')">🔧 Mangel behoben</button>` : ""}
         ${verlauf ? `<div class="verlauf"><label style="margin-top:0">Letzte Prüfungen</label>${verlauf}</div>` : ""}
         <div style="text-align:right"><button class="loeschen mini" onclick="pruefpunktLoeschen('${g.id}','${pp.id}')">Prüfpunkt löschen</button></div>
       </div>`;
@@ -749,7 +763,7 @@ function wiederInBetrieb(geraetId) {
   d.innerHTML = `
     <form method="dialog" onsubmit="return false">
       <h2>Mangel behoben</h2>
-      <p class="klein">${sicher(g.name)} wird danach wieder in Betrieb genommen. Der Eintrag erscheint im Prüfprotokoll.</p>
+      <p class="klein">${g.ausserBetrieb ? sicher(g.name) + " wird danach wieder in Betrieb genommen. " : ""}Offene Mängel an diesem Gerät gelten danach als behoben. Der Eintrag erscheint im Prüfprotokoll.</p>
       <label>Was wurde gemacht? *</label>
       <textarea id="beh-was" placeholder="z. B. Schutzhaube neu befestigt, Schalter getauscht"></textarea>
       <div class="felder">
@@ -757,7 +771,7 @@ function wiederInBetrieb(geraetId) {
         <div><label>Datum</label><input type="date" id="beh-datum" value="${heuteISO()}"></div>
       </div>
       <div class="fenster-knoepfe">
-        <button type="button" class="gruen" onclick="behobenSpeichern('${g.id}')">✓ Speichern und in Betrieb nehmen</button>
+        <button type="button" class="gruen" onclick="behobenSpeichern('${g.id}')">✓ ${g.ausserBetrieb ? "Speichern und in Betrieb nehmen" : "Speichern"}</button>
         <button type="button" class="zweit" onclick="document.getElementById('fenster-behoben').close()">Abbrechen</button>
       </div>
     </form>`;
@@ -775,6 +789,9 @@ function behobenSpeichern(geraetId) {
   g.reparaturen = g.reparaturen || [];
   g.reparaturen.push({ datum, wer, bemerkung: was });
   g.reparaturen.sort((x, y) => x.datum.localeCompare(y.datum));
+  g.pruefpunkte.forEach(pp => {
+    if (mangelOffen(pp)) pp.eintraege.push({ datum: datum + "T12:00:00", pruefer: wer, ergebnis: "behoben", bemerkung: was });
+  });
   g.ausserBetrieb = false;
   speichereDaten();
   document.getElementById("fenster-behoben").close();
@@ -863,7 +880,7 @@ function seiteProtokoll(id) {
           <tr><th>Datum</th><th>Geprüft von</th><th>Ergebnis</th><th>Bemerkung</th></tr>
           ${pp.eintraege.slice().reverse().map(e => `
             <tr><td>${datumText(zuDatum(e.datum))}</td><td>${sicher(e.pruefer)}</td>
-            <td>${e.ergebnis === "ok" ? "in Ordnung" : "MANGEL"}</td><td>${sicher(e.bemerkung)}</td></tr>`).join("")
+            <td>${ergebnisText(e, false)}</td><td>${sicher(e.bemerkung)}</td></tr>`).join("")
             || `<tr><td colspan="4">noch keine Prüfung</td></tr>`}
         </table>`).join("") || `<p class="leer">Keine Prüfpunkte.</p>`}
       <p class="klein">Erstellt am ${datumText(new Date())} mit Wartungsbuch. Für Wartung und Prüfungen ist allein der Betreiber verantwortlich.</p>
