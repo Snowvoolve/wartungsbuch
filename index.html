@@ -91,6 +91,43 @@
   .qr-etikett svg { width: 200px; height: 200px; }
   .qr-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 
+  /* ----- Etappe 2: Listen, Geraetekarte, Formulare ----- */
+  .aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
+  .aktionen a { text-decoration: none; }
+  .aktionen button { margin: 8px 0 0 0; }
+  .zurueck { display: inline-block; color: #5b6168; text-decoration: none; font-weight: 500; font-size: 14.5px; margin-bottom: 14px; }
+  .zurueck:hover { color: var(--anthrazit); }
+  .geraet-zeile { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
+  .geraet-zeile .mitte { flex: 1; min-width: 0; }
+  .geraet-zeile .rechts { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .titel-fett { display: block; font-size: 17px; font-weight: 600; }
+  .icon-kreis { width: 46px; height: 46px; border-radius: 14px; background: rgba(168, 196, 212, .28); display: grid; place-items: center; flex: none; }
+  .icon-kreis svg { width: 24px; height: 24px; stroke: #3d6378; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+  .chip { font-size: 13px; padding: 4px 12px; border-radius: 99px; background: rgba(21, 23, 26, .06); color: #3d4349; font-weight: 500; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0 0 16px; font-size: 14.5px; }
+  .meta small { display: block; font-size: 12px; color: #6a7076; text-transform: uppercase; letter-spacing: .08em; }
+  .punkt-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .punkt-kopf strong { font-size: 17px; }
+  .felder { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .felder .breit { grid-column: 1 / -1; }
+  button.gruen { background: var(--gruen); color: #fff; }
+  button.warn { background: transparent; color: #9a6a00; border: 1.5px solid var(--gelb); }
+  .verlauf { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #d5d8db; }
+  .verlauf-zeile { font-size: 13.5px; color: #4a5056; padding: 3px 0; }
+  details.neu { background: var(--weiss); border: 1px solid var(--rand); border-radius: 16px; padding: 4px 18px; margin: 4px 0 14px; box-shadow: var(--schatten); }
+  details.neu summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  details.neu summary::-webkit-details-marker { display: none; }
+  details.neu summary::after { content: "+"; color: var(--eisblau-dunkel); font-size: 24px; line-height: 1; transition: .2s; }
+  details.neu[open] summary::after { transform: rotate(45deg); }
+  details.neu[open] { padding-bottom: 18px; }
+  .leer-karte { text-align: center; padding: 34px 20px; }
+  .leer-karte p { color: #5b6168; margin: 0 0 6px; }
+  .formular { padding: 22px; }
+  .formular .zeile-knoepfe { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .formular .zeile-knoepfe a { color: #5b6168; text-decoration: none; margin-top: 14px; font-weight: 500; }
+  .gefahr { margin-top: 26px; text-align: center; }
+
   /* ----- Willkommen (leerer Start) ----- */
   .willkommen { text-align: center; padding: 34px 22px 28px; }
   .willkommen h2 { font-size: 28px; margin-bottom: 10px; }
@@ -117,6 +154,8 @@
     body { padding-bottom: 88px; }
     h2 { font-size: 26px; }
     button { padding: 14px 20px; }
+    .felder { grid-template-columns: 1fr; }
+    .meta { grid-template-columns: 1fr 1fr; }
   }
 
   /* ===== Druckansicht (für PDF und QR-Etiketten) ===== */
@@ -409,32 +448,52 @@ function seiteUebersicht() {
 }
 
 /* ---------- MASCHINEN: nach Kategorien sortiert ---------- */
+function katIcon(k) {
+  const w = {
+    "Standmaschine": '<path d="M3 18h18M5 18V9h5v9M10 12h8v6M7 9V6h2v3"/>',
+    "Fahrzeug": '<circle cx="7" cy="17" r="2.2"/><circle cx="17" cy="17" r="2.2"/><path d="M3 17V12l2-4h9l4 4v5M9.2 17h5.6"/>',
+    "Ortsveränderliches Gerät": '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+    "Erste Hilfe & Brandschutz": '<path d="M12 3c3 4 5 6.5 5 9.5a5 5 0 01-10 0C7 9.5 9 7 12 3z"/>',
+    "Gebäude & Sonstiges": '<path d="M3 21V9l9-6 9 6v12zM9 21v-6h6v6"/>'
+  };
+  return '<div class="icon-kreis"><svg viewBox="0 0 24 24">' + (w[k] || w["Standmaschine"]) + '</svg></div>';
+}
+
 function seiteGeraete() {
   if (daten.geraete.length === 0) {
-    inhalt.innerHTML = `<h2>Maschinen & Geräte</h2><p class="leer">Noch keine Geräte.</p><a href="#/neu"><button>Gerät anlegen</button></a>`;
+    inhalt.innerHTML = `
+      <h2>Maschinen & Geräte</h2>
+      <div class="karte leer-karte">
+        <p><b>Noch keine Geräte angelegt.</b></p>
+        <p>Lege dein erstes Gerät an, zum Beispiel eine Maschine oder einen Feuerlöscher.</p>
+        <a href="#/neu"><button>Gerät anlegen</button></a>
+      </div>`;
     return;
   }
   const kategorien = [...new Set([...KATEGORIEN, ...daten.geraete.map(g => g.kategorie)])];
   inhalt.innerHTML = `
     <h2>Maschinen & Geräte</h2>
-    <a href="#/neu"><button>+ Gerät anlegen</button></a>
-    <a href="#/qr-alle"><button class="zweit">Alle QR-Codes drucken</button></a>
+    <div class="aktionen">
+      <a href="#/neu"><button>+ Gerät anlegen</button></a>
+      <a href="#/qr-alle"><button class="zweit">Alle QR-Codes drucken</button></a>
+    </div>
     ${kategorien.map(k => {
       const geraete = daten.geraete.filter(g => g.kategorie === k);
       if (geraete.length === 0) return "";
       return `<h3>${sicher(k)} (${geraete.length})</h3>` + geraete.map(g => {
         const st = g.pruefpunkte.map(statusPruefpunkt).sort((a, b) => a.tage - b.tage)[0];
         return `
-          <div class="karte zeile">
-            <div>
-              <a class="titel" href="#/geraet/${g.id}">${sicher(g.name)}</a>
-              <div class="klein">${sicher(g.standort)} · ${groesse(g)} · ${g.pruefpunkte.length} ${g.pruefpunkte.length === 1 ? "Prüfpunkt" : "Prüfpunkte"}</div>
+          <a class="karte geraet-zeile" href="#/geraet/${g.id}">
+            ${katIcon(g.kategorie)}
+            <div class="mitte">
+              <b class="titel-fett">${sicher(g.name)}</b>
+              <div class="klein">${sicher(g.standort)}${g.standort ? " · " : ""}${groesse(g)} · ${g.pruefpunkte.length} ${g.pruefpunkte.length === 1 ? "Prüfpunkt" : "Prüfpunkte"}</div>
             </div>
-            <div>
+            <div class="rechts">
               ${g.ausserBetrieb ? `<span class="marke ueberfaellig">außer Betrieb</span>` : ""}
               ${st ? marke(st) : `<span class="marke grau">keine Prüfpunkte</span>`}
             </div>
-          </div>`;
+          </a>`;
       }).join("");
     }).join("")}`;
 }
@@ -443,18 +502,24 @@ function seiteGeraete() {
 function seiteNeu() {
   inhalt.innerHTML = `
     <h2>Neues Gerät</h2>
-    <div class="karte">
-      <label>Name des Geräts *</label>
+    <div class="karte formular">
+      <label style="margin-top:0">Name des Geräts *</label>
       <input id="name" placeholder="z. B. Drehmaschine Halle 1">
-      <label>Kategorie</label>
-      <select id="kategorie">${KATEGORIEN.map(k => `<option>${k}</option>`).join("")}</select>
-      <label>Standort</label>
-      <input id="standort" placeholder="z. B. Halle 1">
-      <label>Hersteller / Typ</label>
-      <input id="typ" placeholder="optional">
-      <label>Seriennummer / Inventarnummer</label>
-      <input id="nummer" placeholder="optional">
-      <button onclick="geraetSpeichern()">Gerät anlegen</button>
+      <div class="felder">
+        <div><label>Kategorie</label>
+          <select id="kategorie">${KATEGORIEN.map(k => `<option>${k}</option>`).join("")}</select></div>
+        <div><label>Standort</label>
+          <input id="standort" placeholder="z. B. Halle 1"></div>
+        <div><label>Hersteller / Typ</label>
+          <input id="typ" placeholder="optional"></div>
+        <div><label>Seriennummer / Inventarnummer</label>
+          <input id="nummer" placeholder="optional"></div>
+      </div>
+      <p class="klein" style="margin:14px 0 0">Prüfpunkte legst du im nächsten Schritt fest.</p>
+      <div class="zeile-knoepfe">
+        <button onclick="geraetSpeichern()">Gerät anlegen</button>
+        <a href="#/geraete">Abbrechen</a>
+      </div>
     </div>`;
 }
 
@@ -481,58 +546,67 @@ function seiteGeraet(id) {
   }
 
   const punkte = g.pruefpunkte.map(pp => {
+    const st = statusPruefpunkt(pp);
     const verlauf = pp.eintraege.slice().reverse().slice(0, 5).map(e => `
-      <div class="klein">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${e.ergebnis === "ok" ? "in Ordnung" : "<b>MANGEL</b>"}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
+      <div class="verlauf-zeile">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${e.ergebnis === "ok" ? "in Ordnung" : "<b>MANGEL</b>"}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
     return `
-      <div class="karte">
-        <div class="zeile">
+      <div class="karte rand-${st.klasse}">
+        <div class="punkt-kopf">
           <strong>${sicher(pp.text)}</strong>
-          ${marke(statusPruefpunkt(pp))}
+          ${marke(st)}
         </div>
-        <div class="klein">
+        <div class="klein" style="margin-bottom:6px">
           ${intervallName(pp.intervallTage)}${pp.wer ? " · " + sicher(pp.wer) : ""}
           ${pp.pflicht ? ` · <b>Pflichtprüfung</b>` : ""}${pp.rechtsgrundlage ? " (" + sicher(pp.rechtsgrundlage) + ")" : ""}
         </div>
-        <label>Geprüft von</label>
-        <input id="pruefer-${pp.id}" placeholder="Name">
-        <label>Bemerkung</label>
-        <input id="bem-${pp.id}" placeholder="optional, bei Mangel bitte beschreiben">
-        <button onclick="abhaken('${g.id}','${pp.id}','ok')">✓ In Ordnung</button>
-        <button class="zweit" onclick="abhaken('${g.id}','${pp.id}','mangel')">⚠ Mangel</button>
-        ${verlauf ? `<label>Letzte Prüfungen</label>${verlauf}` : ""}
+        <div class="felder">
+          <div><label>Geprüft von</label><input id="pruefer-${pp.id}" placeholder="Name"></div>
+          <div><label>Bemerkung</label><input id="bem-${pp.id}" placeholder="optional, bei Mangel beschreiben"></div>
+        </div>
+        <button class="gruen" onclick="abhaken('${g.id}','${pp.id}','ok')">✓ In Ordnung</button>
+        <button class="warn" onclick="abhaken('${g.id}','${pp.id}','mangel')">⚠ Mangel melden</button>
+        ${verlauf ? `<div class="verlauf"><label style="margin-top:0">Letzte Prüfungen</label>${verlauf}</div>` : ""}
         <div style="text-align:right"><button class="loeschen mini" onclick="pruefpunktLoeschen('${g.id}','${pp.id}')">Prüfpunkt löschen</button></div>
       </div>`;
   }).join("");
 
   inhalt.innerHTML = `
+    <a class="zurueck" href="#/geraete">← Alle Maschinen</a>
     <h2>${sicher(g.name)}</h2>
-    <p class="klein">
-      ${sicher(g.kategorie)} · ${sicher(g.standort)} · ${groesse(g)}
-      ${g.typ ? "<br>Typ: " + sicher(g.typ) : ""}${g.nummer ? "<br>Nr.: " + sicher(g.nummer) : ""}
-    </p>
+    <div class="chips">
+      <span class="chip">${sicher(g.kategorie)}</span>
+      ${g.standort ? `<span class="chip">${sicher(g.standort)}</span>` : ""}
+      <span class="chip">${groesse(g)}</span>
+    </div>
+    ${(g.typ || g.nummer) ? `<div class="meta">
+      ${g.typ ? `<div><small>Typ</small>${sicher(g.typ)}</div>` : ""}
+      ${g.nummer ? `<div><small>Nummer</small>${sicher(g.nummer)}</div>` : ""}
+    </div>` : ""}
     ${g.ausserBetrieb ? `
       <div class="ausser-betrieb">
         ⛔ AUSSER BETRIEB – nicht benutzen!
         <br><button class="mini zweit" onclick="wiederInBetrieb('${g.id}')">Mangel behoben, wieder in Betrieb nehmen</button>
       </div>` : ""}
-    <a href="#/qr/${g.id}"><button class="zweit">QR-Code</button></a>
-    <a href="#/protokoll/${g.id}"><button class="zweit">Prüfprotokoll (PDF)</button></a>
+    <div class="aktionen">
+      <a href="#/qr/${g.id}"><button class="zweit">QR-Code</button></a>
+      <a href="#/protokoll/${g.id}"><button class="zweit">Prüfprotokoll (PDF)</button></a>
+    </div>
     <h3>Prüfpunkte</h3>
-    ${punkte || `<p class="leer">Noch keine Prüfpunkte. Leg unten den ersten an.</p>`}
-    <div class="karte">
-      <strong>Neuer Prüfpunkt</strong>
-      <label>Was wird geprüft? *</label>
+    ${punkte || `<div class="karte leer-karte"><p><b>Noch keine Prüfpunkte.</b></p><p>Öffne unten „Neuer Prüfpunkt“ und trage ein, was geprüft werden soll.</p></div>`}
+    <details class="neu" ${g.pruefpunkte.length === 0 ? "open" : ""}>
+      <summary>Neuer Prüfpunkt</summary>
+      <label style="margin-top:0">Was wird geprüft? *</label>
       <input id="pp-text" placeholder="z. B. Not-Aus testen">
-      <label>Wie oft?</label>
-      ${intervallAuswahl("pp-intervall", 365)}
-      <label>Wer prüft?</label>
-      <input id="pp-wer" placeholder="z. B. Bediener, Elektrofachkraft, externe Firma">
+      <div class="felder">
+        <div><label>Wie oft?</label>${intervallAuswahl("pp-intervall", 365)}</div>
+        <div><label>Wer prüft?</label><input id="pp-wer" placeholder="z. B. Bediener, externe Firma"></div>
+      </div>
       <label class="haken"><input type="checkbox" id="pp-pflicht"> Gesetzliche Pflichtprüfung (z. B. DGUV, UVV)</label>
       <label>Rechtsgrundlage</label>
       <input id="pp-recht" placeholder="optional, z. B. DGUV Vorschrift 3">
       <button onclick="pruefpunktSpeichern('${g.id}')">Prüfpunkt hinzufügen</button>
-    </div>
-    <button class="loeschen" onclick="geraetLoeschen('${g.id}')">Gerät löschen</button>`;
+    </details>
+    <div class="gefahr"><button class="loeschen" onclick="geraetLoeschen('${g.id}')">Gerät löschen</button></div>`;
 }
 
 function pruefpunktSpeichern(geraetId) {
@@ -601,7 +675,7 @@ function seiteQR(id) {
   if (!g) { inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden.</p>`; return; }
   inhalt.innerHTML = `
     <div class="nicht-drucken">
-      <a href="#/geraet/${g.id}">← zurück zum Gerät</a>
+      <a class="zurueck" href="#/geraet/${g.id}">← zurück zum Gerät</a>
       <p class="klein">Ausdrucken und gut sichtbar an das Gerät kleben. Beim Scannen öffnet sich direkt dieses Gerät.</p>
       <button onclick="window.print()">Drucken</button>
     </div>
@@ -623,7 +697,7 @@ function seiteProtokoll(id) {
   if (!g) { inhalt.innerHTML = `<p class="leer">Gerät nicht gefunden.</p>`; return; }
   inhalt.innerHTML = `
     <div class="nicht-drucken">
-      <a href="#/geraet/${g.id}">← zurück zum Gerät</a>
+      <a class="zurueck" href="#/geraet/${g.id}">← zurück zum Gerät</a>
       <p class="klein">Tipp: Im Druckfenster als Drucker "Als PDF speichern" wählen.</p>
       <button onclick="window.print()">Drucken / als PDF speichern</button>
     </div>
@@ -656,7 +730,7 @@ function seiteProtokoll(id) {
 function seitePersonal() {
   inhalt.innerHTML = `
     <h2>Personal & Unterweisungen</h2>
-    <p class="klein">Datenschutz: Namen bleiben bis Stufe 2 nur auf diesem Gerät gespeichert.</p>
+    <p class="klein" style="margin-top:-8px">Datenschutz: Namen bleiben bis Stufe 2 nur auf diesem Gerät gespeichert.</p>
 
     <h3>Unterweisungen</h3>
     ${daten.unterweisungen.map(u => `
