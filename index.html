@@ -148,6 +148,17 @@
   .abschnitt-kopf b { display: block; font-size: 17px; }
   .abschnitt-kopf span { color: #5b6168; font-size: 14px; }
 
+  /* ----- Fenster (Mangel behoben) ----- */
+  dialog.fenster { border: 0; border-radius: 20px; padding: 0; width: min(460px, calc(100vw - 32px)); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .5); color: var(--anthrazit); }
+  dialog.fenster::backdrop { background: rgba(21, 23, 26, .55); }
+  dialog.fenster form { padding: 22px; margin: 0; }
+  dialog.fenster h2 { font-size: 24px; margin: 0 0 6px; }
+  dialog.fenster .klein { margin: 0 0 6px; }
+  dialog.fenster textarea { min-height: 90px; resize: vertical; }
+  dialog.fenster .fenster-knoepfe { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .reparatur { font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--rand); }
+  .reparatur:last-child { border-bottom: 0; }
+
   /* ----- Willkommen (leerer Start) ----- */
   .willkommen { text-align: center; padding: 34px 22px 28px; }
   .willkommen h2 { font-size: 28px; margin-bottom: 10px; }
@@ -180,7 +191,7 @@
 
   /* ===== Druckansicht (für PDF und QR-Etiketten) ===== */
   @media print {
-    header, .oben, .nav-unten, .nicht-drucken { display: none !important; }
+    header, .oben, .nav-unten, .nicht-drucken, dialog { display: none !important; }
     body { padding-bottom: 0 !important; }
     body { background: #fff; }
     main { max-width: none; padding: 0; }
@@ -613,6 +624,12 @@ function seiteGeraet(id) {
     </div>
     <h3>Prüfpunkte</h3>
     ${punkte || `<div class="karte leer-karte"><p><b>Noch keine Prüfpunkte.</b></p><p>Öffne unten „Neuer Prüfpunkt“ und trage ein, was geprüft werden soll.</p></div>`}
+    ${(g.reparaturen || []).length ? `
+      <h3>Behobene Mängel</h3>
+      <div class="karte">
+        ${g.reparaturen.slice().reverse().map(r => `
+          <div class="reparatur"><b>${datumText(zuDatum(r.datum))}</b> · ${sicher(r.wer)}<br>${sicher(r.bemerkung)}</div>`).join("")}
+      </div>` : ""}
     <details class="neu" ${g.pruefpunkte.length === 0 ? "open" : ""}>
       <summary>Neuer Prüfpunkt</summary>
       <label style="margin-top:0">Was wird geprüft? *</label>
@@ -658,9 +675,48 @@ function abhaken(geraetId, ppId, ergebnis) {
   seiteGeraet(geraetId);
 }
 
+// Mangel behoben: Fenster fragt, was gemacht wurde und wer es behoben hat
 function wiederInBetrieb(geraetId) {
-  findeGeraet(geraetId).ausserBetrieb = false;
+  const g = findeGeraet(geraetId);
+  let d = document.getElementById("fenster-behoben");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "fenster-behoben";
+    d.className = "fenster";
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `
+    <form method="dialog" onsubmit="return false">
+      <h2>Mangel behoben</h2>
+      <p class="klein">${sicher(g.name)} wird danach wieder in Betrieb genommen. Der Eintrag erscheint im Prüfprotokoll.</p>
+      <label>Was wurde gemacht? *</label>
+      <textarea id="beh-was" placeholder="z. B. Schutzhaube neu befestigt, Schalter getauscht"></textarea>
+      <div class="felder">
+        <div><label>Behoben von *</label><input id="beh-wer" placeholder="Name oder Firma"></div>
+        <div><label>Datum</label><input type="date" id="beh-datum" value="${heuteISO()}"></div>
+      </div>
+      <div class="fenster-knoepfe">
+        <button type="button" class="gruen" onclick="behobenSpeichern('${g.id}')">✓ Speichern und in Betrieb nehmen</button>
+        <button type="button" class="zweit" onclick="document.getElementById('fenster-behoben').close()">Abbrechen</button>
+      </div>
+    </form>`;
+  d.showModal();
+  setTimeout(() => document.getElementById("beh-was").focus(), 50);
+}
+
+function behobenSpeichern(geraetId) {
+  const was = wert("beh-was");
+  const wer = wert("beh-wer");
+  const datum = wert("beh-datum") || heuteISO();
+  if (!was) { alert("Bitte eintragen, was gemacht wurde."); return; }
+  if (!wer) { alert("Bitte eintragen, wer den Mangel behoben hat."); return; }
+  const g = findeGeraet(geraetId);
+  g.reparaturen = g.reparaturen || [];
+  g.reparaturen.push({ datum, wer, bemerkung: was });
+  g.reparaturen.sort((x, y) => x.datum.localeCompare(y.datum));
+  g.ausserBetrieb = false;
   speichereDaten();
+  document.getElementById("fenster-behoben").close();
   seiteGeraet(geraetId);
 }
 
@@ -728,6 +784,13 @@ function seiteProtokoll(id) {
         <tr><th>Typ</th><td>${sicher(g.typ)}</td><th>Nummer</th><td>${sicher(g.nummer)}</td></tr>
         <tr><th>Status</th><td colspan="3">${g.ausserBetrieb ? "<b>AUSSER BETRIEB</b>" : "in Betrieb"}</td></tr>
       </table>
+      ${(g.reparaturen || []).length ? `
+        <h3>Behobene Mängel</h3>
+        <table>
+          <tr><th>Datum</th><th>Behoben von</th><th>Was wurde gemacht</th></tr>
+          ${g.reparaturen.slice().reverse().map(r => `
+            <tr><td>${datumText(zuDatum(r.datum))}</td><td>${sicher(r.wer)}</td><td>${sicher(r.bemerkung)}</td></tr>`).join("")}
+        </table>` : ""}
       ${g.pruefpunkte.map(pp => `
         <h3>${sicher(pp.text)}</h3>
         <div class="klein">
