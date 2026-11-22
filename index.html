@@ -812,7 +812,7 @@ if (istInstalliert()) document.getElementById("installieren-link").style.display
 
 // Installierbar machen (funktioniert nur über https oder localhost, nicht per Doppelklick)
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register("sw.js");
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
 }
 </script>
 </body>
