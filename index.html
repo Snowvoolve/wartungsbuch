@@ -159,6 +159,14 @@
   .reparatur { font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--rand); }
   .reparatur:last-child { border-bottom: 0; }
 
+  /* ----- Uebersicht: eine Karte pro Geraet ----- */
+  .zaehler { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .zaehler span { font-size: 13px; font-weight: 600; padding: 4px 11px; border-radius: 99px; white-space: nowrap; }
+  .rest-karte { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-decoration: none; color: var(--anthrazit); }
+  .rest-karte i { font-style: normal; color: var(--eisblau-dunkel); font-size: 22px; }
+  .alles-gut { text-align: center; padding: 26px 18px; }
+  .alles-gut b { display: block; font-size: 18px; margin-bottom: 4px; }
+
   /* ----- Willkommen (leerer Start) ----- */
   .willkommen { text-align: center; padding: 34px 22px 28px; }
   .willkommen h2 { font-size: 28px; margin-bottom: 10px; }
@@ -441,7 +449,7 @@ function seiteUebersicht() {
   const gelb = liste.filter(x => x.st.klasse === "bald").length;
   const gruen = liste.filter(x => x.st.klasse === "ok").length;
 
-  if (liste.length === 0 && ausser.length === 0) {
+  if (daten.geraete.length === 0 && daten.unterweisungen.length === 0) {
     inhalt.innerHTML = `
       <div class="karte willkommen">
         <h2>Willkommen im Wartungsbuch</h2>
@@ -459,23 +467,76 @@ function seiteUebersicht() {
     return;
   }
 
+  // Pro Geraet zaehlen: wie viele Punkte faellig, bald, in Ordnung
+  const geraeteInfo = daten.geraete.map(g => {
+    const st = g.pruefpunkte.map(statusPruefpunkt);
+    return {
+      g,
+      rot: st.filter(x => x.klasse === "ueberfaellig").length,
+      gelb: st.filter(x => x.klasse === "bald").length,
+      gruen: st.filter(x => x.klasse === "ok").length,
+      dringend: st.length ? Math.min(...st.map(x => x.tage)) : 99999
+    };
+  });
+  const offen = geraeteInfo
+    .filter(x => x.g.ausserBetrieb || x.rot || x.gelb)
+    .sort((a, b) => (b.g.ausserBetrieb - a.g.ausserBetrieb) || (b.rot - a.rot) || (a.dringend - b.dringend));
+  const fertig = geraeteInfo.length - offen.length;
+  const gRot = offen.filter(x => x.g.ausserBetrieb || x.rot).length;
+  const gGelb = offen.length - gRot;
+
+  const uwOffen = daten.unterweisungen.map(u => statusUnterweisung(u)).filter(x => x.klasse !== "ok");
+  const uwRot = uwOffen.filter(x => x.klasse === "ueberfaellig").length;
+  const uwGelb = uwOffen.filter(x => x.klasse === "bald").length;
+
   inhalt.innerHTML = `
     <h2>Übersicht</h2>
     <div class="zahlen">
-      <div class="ueberfaellig"><b>${rot}</b>fällig</div>
-      <div class="bald"><b>${gelb}</b>bald</div>
-      <div class="ok"><b>${gruen}</b>in Ordnung</div>
+      <div class="ueberfaellig"><b>${gRot}</b>${gRot === 1 ? "Gerät" : "Geräte"} fällig</div>
+      <div class="bald"><b>${gGelb}</b>${gGelb === 1 ? "Gerät" : "Geräte"} bald</div>
+      <div class="ok"><b>${fertig}</b>in Ordnung</div>
     </div>
-    ${ausser.map(g => `<a href="#/geraet/${g.id}" style="text-decoration:none"><div class="ausser-betrieb">⛔ AUSSER BETRIEB: ${sicher(g.name)}</div></a>`).join("")}
-    ${liste.map(x => `
-      <div class="karte zeile rand-${x.st.klasse}">
-        <div>
-          <a class="titel" href="${x.link}">${sicher(x.titel)}</a>
-          <div>${sicher(x.text)}</div>
-          <div class="klein">${sicher(x.unter)}</div>
+
+    ${offen.length ? `<h3>Geräte mit offenen Punkten (${offen.length})</h3>` : ""}
+    ${offen.map(x => `
+      <a class="karte geraet-zeile ${x.g.ausserBetrieb || x.rot ? "rand-ueberfaellig" : "rand-bald"}" href="#/geraet/${x.g.id}">
+        ${katIcon(x.g.kategorie)}
+        <div class="mitte">
+          <b class="titel-fett">${sicher(x.g.name)}</b>
+          <div class="klein">${sicher(x.g.standort)}${x.g.standort ? " · " : ""}${x.g.pruefpunkte.length} ${x.g.pruefpunkte.length === 1 ? "Prüfpunkt" : "Prüfpunkte"}</div>
         </div>
-        ${marke(x.st)}
-      </div>`).join("")}`;
+        <div class="zaehler">
+          ${x.g.ausserBetrieb ? `<span class="ueberfaellig">außer Betrieb</span>` : ""}
+          ${x.rot ? `<span class="ueberfaellig">${x.rot} fällig</span>` : ""}
+          ${x.gelb ? `<span class="bald">${x.gelb} bald</span>` : ""}
+        </div>
+      </a>`).join("")}
+
+    ${!offen.length && daten.geraete.length ? `
+      <div class="karte alles-gut">
+        <b>Alles erledigt</b>
+        <span class="klein">Bei keinem Gerät ist gerade etwas fällig.</span>
+      </div>` : ""}
+
+    ${fertig ? `
+      <a class="karte rest-karte" href="#/geraete">
+        <div><b>${fertig} ${fertig === 1 ? "Gerät" : "Geräte"} ohne offene Punkte</b><div class="klein">Alle Maschinen ansehen</div></div><i>›</i>
+      </a>` : ""}
+
+    ${daten.unterweisungen.length ? `
+      <h3>Unterweisungen</h3>
+      <a class="karte geraet-zeile ${uwRot ? "rand-ueberfaellig" : uwGelb ? "rand-bald" : "rand-ok"}" href="#/personal">
+        <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg></div>
+        <div class="mitte">
+          <b class="titel-fett">${daten.unterweisungen.length} ${daten.unterweisungen.length === 1 ? "Unterweisung" : "Unterweisungen"}</b>
+          <div class="klein">Personal & Unterweisungen ansehen</div>
+        </div>
+        <div class="zaehler">
+          ${uwRot ? `<span class="ueberfaellig">${uwRot} fällig</span>` : ""}
+          ${uwGelb ? `<span class="bald">${uwGelb} bald</span>` : ""}
+          ${!uwRot && !uwGelb ? `<span class="ok">alles ok</span>` : ""}
+        </div>
+      </a>` : ""}`;
 }
 
 /* ---------- MASCHINEN: nach Kategorien sortiert ---------- */

@@ -1,7 +1,7 @@
 /* Service Worker: legt die App-Dateien auf dem Gerät ab, damit sie auch offline startet.
    Vergleich: wie ein Ersatzteillager vor Ort statt jedes Mal beim Händler zu bestellen.
    Bei jeder Änderung an der App die VERSION hochzählen, sonst sehen Nutzer die alte Version. */
-const VERSION = "wartungsbuch-v8";
+const VERSION = "wartungsbuch-v9";
 const DATEIEN = [
   "./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png",
   "./fonts/inter-400.ttf", "./fonts/inter-500.ttf", "./fonts/inter-600.ttf", "./fonts/tenor-sans.ttf",
