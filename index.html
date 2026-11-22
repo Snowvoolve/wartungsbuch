@@ -80,6 +80,12 @@
   button.zweit { background: var(--eisblau); color: var(--anthrazit); }
   button.loeschen { background: transparent; color: var(--rot); border: 1px solid var(--rot); }
   button.rot-voll { background: var(--rot); color: #fff; border: 1px solid var(--rot); }
+  #leiste-rueckgaengig { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; transition: .25s; z-index: 50;
+    display: flex; align-items: center; gap: 16px; background: #15171a; color: #fff; padding: 10px 10px 10px 18px; border-radius: 14px; box-shadow: 0 12px 30px -10px rgba(0,0,0,.5); max-width: calc(100vw - 32px); }
+  #leiste-rueckgaengig.sichtbar { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+  #leiste-rueckgaengig span { white-space: nowrap; }
+  #leiste-rueckgaengig button { margin: 0; background: #a8c4d4; color: #15171a; border: 0; white-space: nowrap; }
+  @media (max-width: 719px) { #leiste-rueckgaengig { bottom: 96px; } }
   button.mini { padding: 6px 12px; font-size: 13px; margin: 0; border-radius: 9px; }
   a.titel { color: var(--anthrazit); font-weight: 600; font-size: 17px; text-decoration: none; }
   a.titel:hover { text-decoration: underline; }
@@ -252,8 +258,13 @@ function ladeDaten() {
   d.geraete = d.geraete || [];
   d.mitarbeiter = d.mitarbeiter || [];
   d.unterweisungen = d.unterweisungen || [];
+  // Papierkorb: Geloeschtes bleibt 30 Tage, danach wird es endgueltig entfernt
+  const grenze = Date.now() - PAPIERKORB_TAGE * 86400000;
+  d.papierkorb = (d.papierkorb || []).filter(x => new Date(x.geloeschtAm).getTime() > grenze);
   return d;
 }
+
+const PAPIERKORB_TAGE = 30;
 
 function speichereDaten() {
   localStorage.setItem(SPEICHER_NAME, JSON.stringify(daten));
@@ -410,7 +421,7 @@ function markiereNav(seite) {
   const key = gruppe[seite] !== undefined ? gruppe[seite] : seite;
   document.querySelectorAll("nav a[data-seite]").forEach(a => {
     const unten = a.closest(".nav-unten");
-    const ziel = unten && (key === "sicherung" || key === "installieren") ? "mehr" : key;
+    const ziel = unten && (key === "sicherung" || key === "installieren" || key === "papierkorb") ? "mehr" : key;
     a.classList.toggle("aktiv", a.dataset.seite === ziel);
   });
 }
@@ -429,6 +440,7 @@ function zeigeSeite() {
   if (seite === "personal") return seitePersonal();
   if (seite === "unterweisung" && id) return seiteUnterweisung(id);
   if (seite === "sicherung") return seiteSicherung();
+  if (seite === "papierkorb") return seitePapierkorb();
   if (seite === "installieren") return seiteInstallieren();
   return seiteUebersicht();
 }
@@ -439,6 +451,9 @@ function seiteMehr() {
     <h2>Mehr</h2>
     <a class="karte menue-eintrag" href="#/sicherung">
       <div><b>Datensicherung</b><span>Daten als Datei speichern oder laden</span></div><i>›</i>
+    </a>
+    <a class="karte menue-eintrag" href="#/papierkorb">
+      <div><b>Papierkorb${daten.papierkorb.length ? ` (${daten.papierkorb.length})` : ""}</b><span>Gelöschte Prüfpunkte und Geräte wiederherstellen</span></div><i>›</i>
     </a>
     ${istInstalliert() ? "" : `<a class="karte menue-eintrag" href="#/installieren">
       <div><b>App installieren</b><span>Wartungsbuch auf den Startbildschirm legen</span></div><i>›</i>
@@ -573,7 +588,7 @@ function seiteGeraete() {
         <p><b>Noch keine Geräte angelegt.</b></p>
         <p>Lege dein erstes Gerät an, zum Beispiel eine Maschine oder einen Feuerlöscher.</p>
         <a href="#/neu"><button>Gerät anlegen</button></a>
-      </div>`;
+      </div>${papierkorbHinweis()}`;
     return;
   }
   const kategorien = [...new Set([...KATEGORIEN, ...daten.geraete.map(g => g.kategorie)])];
@@ -601,7 +616,14 @@ function seiteGeraete() {
             </div>
           </a>`;
       }).join("");
-    }).join("")}`;
+    }).join("")}${papierkorbHinweis()}`;
+}
+
+// Kleiner Link unter der Maschinenliste, wenn etwas im Papierkorb liegt
+function papierkorbHinweis() {
+  const n = daten.papierkorb.length;
+  return n ? `<a class="karte rest-karte" href="#/papierkorb" style="margin-top:18px">
+    <div><b>Papierkorb (${n})</b><div class="klein">Gelöschtes ${PAPIERKORB_TAGE} Tage lang wiederherstellen</div></div><i>›</i></a>` : "";
 }
 
 /* ---------- NEUES GERÄT ---------- */
@@ -706,6 +728,18 @@ function seiteGeraet(id) {
         ${g.reparaturen.slice().reverse().map(r => `
           <div class="reparatur"><b>${datumText(zuDatum(r.datum))}</b> · ${sicher(r.wer)}<br>${sicher(r.bemerkung)}</div>`).join("")}
       </div>` : ""}
+    ${(() => {
+      const weg = daten.papierkorb.filter(e => e.art === "pruefpunkt" && e.geraetId === g.id);
+      return weg.length ? `
+        <h3>Kürzlich gelöschte Prüfpunkte</h3>
+        <div class="karte">
+          ${weg.map(e => `
+            <div class="person">
+              <span class="name">${sicher(e.inhalt.text)} <span class="klein">· gelöscht am ${datumText(new Date(e.geloeschtAm))}</span></span>
+              <button class="zweit mini" onclick="if (wiederherstellen('${e.id}')) seiteGeraet('${g.id}')">Wiederherstellen</button>
+            </div>`).join("")}
+        </div>` : "";
+    })()}
     <details class="neu" ${g.pruefpunkte.length === 0 ? "open" : ""}>
       <summary>Neuer Prüfpunkt</summary>
       <label style="margin-top:0">Was wird geprüft? *</label>
@@ -812,7 +846,7 @@ function sicherFragen(titel, text, knopfText, aktion) {
     <form method="dialog" onsubmit="return false">
       <h2>${titel}</h2>
       <p>${text}</p>
-      <p class="klein"><b>Das kann nicht rückgängig gemacht werden.</b></p>
+      <p class="klein">Aus Versehen gelöscht? Du kannst es ${PAPIERKORB_TAGE} Tage lang im Papierkorb wiederherstellen.</p>
       <div class="fenster-knoepfe">
         <button type="button" class="zweit" id="loeschen-nein">Abbrechen</button>
         <button type="button" class="rot-voll" id="loeschen-ja">${knopfText}</button>
@@ -832,9 +866,13 @@ function pruefpunktLoeschen(geraetId, ppId) {
     `<b>${sicher(pp.text)}</b> an ${sicher(g.name)} wird gelöscht${n ? `, zusammen mit ${n} ${n === 1 ? "Prüfeintrag" : "Prüfeinträgen"} aus dem Verlauf` : ""}.`,
     "Ja, Prüfpunkt löschen",
     () => {
+      const eintrag = { id: neueId(), art: "pruefpunkt", geloeschtAm: new Date().toISOString(),
+        geraetId, geraetName: g.name, position: g.pruefpunkte.indexOf(pp), inhalt: pp };
+      daten.papierkorb.push(eintrag);
       g.pruefpunkte = g.pruefpunkte.filter(p => p.id !== ppId);
       speichereDaten();
       seiteGeraet(geraetId);
+      zeigeRueckgaengig("Prüfpunkt gelöscht", eintrag.id);
     });
 }
 
@@ -844,10 +882,75 @@ function geraetLoeschen(geraetId) {
     `<b>${sicher(g.name)}</b> wird gelöscht, mit ${g.pruefpunkte.length === 1 ? "seinem Prüfpunkt" : `allen ${g.pruefpunkte.length} Prüfpunkten`} und dem ganzen Prüfverlauf.`,
     "Ja, Gerät löschen",
     () => {
+      const eintrag = { id: neueId(), art: "geraet", geloeschtAm: new Date().toISOString(),
+        geraetId, geraetName: g.name, position: daten.geraete.indexOf(g), inhalt: g };
+      daten.papierkorb.push(eintrag);
       daten.geraete = daten.geraete.filter(x => x.id !== geraetId);
       speichereDaten();
       location.hash = "#/geraete";
+      zeigeRueckgaengig("Gerät gelöscht", eintrag.id);
     });
+}
+
+/* ---------- PAPIERKORB: Gelöschtes wiederherstellen ---------- */
+function wiederherstellen(eintragId) {
+  const e = daten.papierkorb.find(x => x.id === eintragId);
+  if (!e) return false;
+  if (e.art === "geraet") {
+    daten.geraete.splice(Math.min(e.position, daten.geraete.length), 0, e.inhalt);
+  } else {
+    const g = findeGeraet(e.geraetId);
+    if (!g) {
+      alert(`Das Gerät "${e.geraetName}" ist auch gelöscht. Stelle zuerst das Gerät wieder her.`);
+      return false;
+    }
+    g.pruefpunkte.splice(Math.min(e.position, g.pruefpunkte.length), 0, e.inhalt);
+  }
+  daten.papierkorb = daten.papierkorb.filter(x => x.id !== eintragId);
+  speichereDaten();
+  return true;
+}
+
+// Leiste unten mit "Rueckgaengig", verschwindet nach 10 Sekunden
+function zeigeRueckgaengig(text, eintragId) {
+  let t = document.getElementById("leiste-rueckgaengig");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "leiste-rueckgaengig";
+    document.body.appendChild(t);
+  }
+  t.innerHTML = `<span>${text}</span><button type="button">Rückgängig</button>`;
+  t.querySelector("button").onclick = () => {
+    t.classList.remove("sichtbar");
+    if (wiederherstellen(eintragId)) zeigeSeite();
+  };
+  t.classList.add("sichtbar");
+  clearTimeout(t.timer);
+  t.timer = setTimeout(() => t.classList.remove("sichtbar"), 10000);
+}
+
+function seitePapierkorb() {
+  const liste = daten.papierkorb.slice().reverse();
+  inhalt.innerHTML = `
+    <a class="zurueck" href="#/mehr">← Mehr</a>
+    <h2>Papierkorb</h2>
+    <div class="info-karte">Gelöschte Prüfpunkte und Geräte bleiben hier ${PAPIERKORB_TAGE} Tage, mit allen Prüfeinträgen. Danach werden sie endgültig entfernt.</div>
+    ${liste.map(e => {
+      const rest = Math.max(1, Math.ceil((new Date(e.geloeschtAm).getTime() + PAPIERKORB_TAGE * 86400000 - Date.now()) / 86400000));
+      const titel = e.art === "geraet" ? e.inhalt.name : e.inhalt.text;
+      const unter = e.art === "geraet"
+        ? `Gerät · ${e.inhalt.pruefpunkte.length} ${e.inhalt.pruefpunkte.length === 1 ? "Prüfpunkt" : "Prüfpunkte"}`
+        : `Prüfpunkt an ${e.geraetName} · ${e.inhalt.eintraege.length} ${e.inhalt.eintraege.length === 1 ? "Eintrag" : "Einträge"}`;
+      return `
+        <div class="karte geraet-zeile">
+          ${e.art === "geraet" ? katIcon(e.inhalt.kategorie) : `<div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div>`}
+          <div class="mitte">
+            <b class="titel-fett">${sicher(titel)}</b>
+            <div class="klein">${sicher(unter)} · gelöscht am ${datumText(new Date(e.geloeschtAm))} · noch ${rest} ${rest === 1 ? "Tag" : "Tage"}</div>
+          </div>
+          <button class="zweit mini" onclick="if (wiederherstellen('${e.id}')) seitePapierkorb()">Wiederherstellen</button>
+        </div>`;
+    }).join("") || `<div class="karte leer-karte"><p><b>Der Papierkorb ist leer.</b></p></div>`}`;
 }
 
 /* ---------- QR-CODES ---------- */
