@@ -128,6 +128,10 @@
   button.warn { background: transparent; color: #9a6a00; border: 1.5px solid var(--gelb); }
   .verlauf { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #d5d8db; }
   .verlauf-zeile { font-size: 13.5px; color: #4a5056; padding: 3px 0; }
+  .foto-zeile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .foto-mini { height: 44px; width: 44px; object-fit: cover; border-radius: 8px; border: 1px solid #d5d8db; vertical-align: middle; cursor: zoom-in; }
+  .foto-druck { max-width: 220px; max-height: 220px; border-radius: 6px; display: block; margin-top: 6px; }
+  .foto-gross { max-width: 100%; max-height: 70vh; border-radius: 10px; display: block; margin: 0 auto 14px; }
   details.neu { background: var(--weiss); border: 1px solid var(--rand); border-radius: 16px; padding: 4px 18px; margin: 4px 0 14px; box-shadow: var(--schatten); }
   details.neu summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; display: flex; justify-content: space-between; align-items: center; }
   details.neu summary::-webkit-details-marker { display: none; }
@@ -281,7 +285,15 @@ function speichereDaten() {
     zeigeSeite();
     throw new Error("TESTPHASE_ABGELAUFEN");
   }
-  localStorage.setItem(SPEICHER_NAME, JSON.stringify(daten));
+  try {
+    localStorage.setItem(SPEICHER_NAME, JSON.stringify(daten));
+  } catch (e) {
+    // Speicher im Browser voll (vor allem durch Fotos): nichts halb speichern
+    daten = ladeDaten();
+    alert("Der Speicher im Browser ist voll, das war nicht gespeichert. Tipp: Datensicherung herunterladen und Einträge mit Fotos möglichst klein halten.");
+    zeigeSeite();
+    throw new Error("TESTPHASE_ABGELAUFEN");
+  }
 }
 
 let daten = ladeDaten();
@@ -773,7 +785,7 @@ function seiteGeraet(id) {
   const punkte = g.pruefpunkte.map(pp => {
     const st = statusPruefpunkt(pp);
     const verlauf = pp.eintraege.slice().reverse().slice(0, 5).map(e => `
-      <div class="verlauf-zeile">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${ergebnisText(e, true)}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}</div>`).join("");
+      <div class="verlauf-zeile">${datumText(zuDatum(e.datum))} · ${sicher(e.pruefer)} · ${ergebnisText(e, true)}${e.bemerkung ? " · " + sicher(e.bemerkung) : ""}${e.foto ? ` <img class="foto-mini" src="${e.foto}" alt="Foto zur Prüfung" onclick="fotoGross(this.src)">` : ""}</div>`).join("");
     return `
       <div class="karte rand-${st.klasse}">
         <div class="punkt-kopf">
@@ -787,6 +799,11 @@ function seiteGeraet(id) {
         <div class="felder">
           <div><label>Geprüft von</label><input id="pruefer-${pp.id}" placeholder="Name"></div>
           <div><label>Bemerkung</label><input id="bem-${pp.id}" placeholder="optional, bei Mangel beschreiben"></div>
+        </div>
+        <div class="foto-zeile">
+          <button type="button" class="zweit mini" onclick="document.getElementById('foto-in-${pp.id}').click()">📷 Foto hinzufügen</button>
+          <input type="file" accept="image/*" id="foto-in-${pp.id}" hidden onchange="fotoWaehlen(this,'${pp.id}')">
+          <span id="foto-vorschau-${pp.id}"></span>
         </div>
         <button class="gruen" onclick="abhaken('${g.id}','${pp.id}','ok')">✓ In Ordnung</button>
         <button class="warn" onclick="abhaken('${g.id}','${pp.id}','mangel')">⚠ Mangel melden</button>
@@ -872,14 +889,59 @@ function abhaken(geraetId, ppId, ergebnis) {
   const pruefer = wert("pruefer-" + ppId);
   if (!pruefer) { alert("Bitte eintragen, wer geprüft hat."); return; }
   const g = findeGeraet(geraetId);
-  g.pruefpunkte.find(p => p.id === ppId).eintraege.push({
-    datum: new Date().toISOString(), pruefer, ergebnis, bemerkung: wert("bem-" + ppId)
-  });
+  const eintrag = { datum: new Date().toISOString(), pruefer, ergebnis, bemerkung: wert("bem-" + ppId) };
+  if (fotoEntwurf[ppId]) eintrag.foto = fotoEntwurf[ppId];
+  g.pruefpunkte.find(p => p.id === ppId).eintraege.push(eintrag);
   if (ergebnis === "mangel" && !g.ausserBetrieb && confirm("Mangel gespeichert. Gerät außer Betrieb setzen?")) {
     g.ausserBetrieb = true;
   }
   speichereDaten();
+  delete fotoEntwurf[ppId];
   seiteGeraet(geraetId);
+}
+
+// Foto zur Prüfung: wird verkleinert (max. 900 Pixel), damit der Browser-Speicher reicht
+const fotoEntwurf = {};
+
+function fotoWaehlen(input, ppId) {
+  const datei = input.files[0];
+  if (!datei) return;
+  const url = URL.createObjectURL(datei);
+  const bild = new Image();
+  bild.onload = () => {
+    const faktor = Math.min(1, 900 / Math.max(bild.width, bild.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bild.width * faktor);
+    c.height = Math.round(bild.height * faktor);
+    c.getContext("2d").drawImage(bild, 0, 0, c.width, c.height);
+    fotoEntwurf[ppId] = c.toDataURL("image/jpeg", 0.65);
+    URL.revokeObjectURL(url);
+    zeigeFotoVorschau(ppId);
+  };
+  bild.onerror = () => { URL.revokeObjectURL(url); alert("Dieses Bild konnte nicht gelesen werden."); };
+  bild.src = url;
+  input.value = "";
+}
+
+function zeigeFotoVorschau(ppId) {
+  const el = document.getElementById("foto-vorschau-" + ppId);
+  if (!el) return;
+  el.innerHTML = fotoEntwurf[ppId]
+    ? `<img class="foto-mini" src="${fotoEntwurf[ppId]}" alt="Vorschau" onclick="fotoGross(this.src)"> <button type="button" class="loeschen mini" onclick="delete fotoEntwurf['${ppId}']; zeigeFotoVorschau('${ppId}')">Foto entfernen</button>`
+    : "";
+}
+
+function fotoGross(src) {
+  let d = document.getElementById("fenster-foto");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "fenster-foto";
+    d.className = "fenster";
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `<img class="foto-gross" src="${src}" alt="Foto">
+    <div class="fenster-knoepfe"><button type="button" class="zweit" onclick="document.getElementById('fenster-foto').close()">Schließen</button></div>`;
+  d.showModal();
 }
 
 // Mangel behoben: Fenster fragt, was gemacht wurde und wer es behoben hat
@@ -1117,7 +1179,7 @@ function seiteProtokoll(id) {
           <tr><th>Datum</th><th>Geprüft von</th><th>Ergebnis</th><th>Bemerkung</th></tr>
           ${pp.eintraege.slice().reverse().map(e => `
             <tr><td>${datumText(zuDatum(e.datum))}</td><td>${sicher(e.pruefer)}</td>
-            <td>${ergebnisText(e, false)}</td><td>${sicher(e.bemerkung)}</td></tr>`).join("")
+            <td>${ergebnisText(e, false)}</td><td>${sicher(e.bemerkung)}${e.foto ? `<img class="foto-druck" src="${e.foto}" alt="Foto zur Prüfung">` : ""}</td></tr>`).join("")
             || `<tr><td colspan="4">noch keine Prüfung</td></tr>`}
         </table>`).join("") || `<p class="leer">Keine Prüfpunkte.</p>`}
       <p class="klein">Erstellt am ${datumText(new Date())} mit Wartungsbuch. Für Wartung und Prüfungen ist allein der Betreiber verantwortlich.</p>
