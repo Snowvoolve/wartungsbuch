@@ -617,7 +617,13 @@ function markiereNav(seite) {
 }
 
 function zeigeSeite() {
-  if (!bereit) return;   // erst nach Anmeldung und Laden der Firma
+  if (!bereit) {
+    // Vor der Anmeldung ist nur die Installationsseite erreichbar
+    const s = location.hash.replace("#/", "").split("/")[0];
+    if (s === "installieren") { ohneLogin = true; document.body.classList.add("abgemeldet"); seiteInstallieren(); }
+    else if (ohneLogin) { ohneLogin = false; starteApp(); }
+    return;
+  }
   const [seite, id] = location.hash.replace("#/", "").split("/");
   window.scrollTo(0, 0);
   markiereNav(seite);
@@ -1533,7 +1539,7 @@ function seiteInstallieren() {
   }
 
   inhalt.innerHTML = `
-    <a class="zurueck nicht-drucken" href="#/mehr">← Mehr</a>
+    ${bereit ? `<a class="zurueck nicht-drucken" href="#/mehr">← Mehr</a>` : `<a class="zurueck nicht-drucken" href="#/">← Zur Anmeldung</a>`}
     <h2>App installieren</h2>
     <div class="karte nicht-drucken">${anleitung}</div>
     <h3 class="nicht-drucken">QR-Code zum Weitergeben</h3>
@@ -1702,13 +1708,17 @@ async function firmaAnlegen(alt) {
 }
 
 /* ===== Start ===== */
-window.addEventListener("hashchange", zeigeSeite);
-(async () => {
+let ohneLogin = false;   // true, solange die Installationsseite ohne Anmeldung gezeigt wird
+async function starteApp() {
   try {
     const { data } = await sb.auth.getSession();
-    if (!data.session) zeigeAnmeldung("login"); else await ladeFirma();
+    if (data.session) await ladeFirma();
+    else if (location.hash === "#/installieren") zeigeSeite();
+    else zeigeAnmeldung("login");
   } catch (e) { zeigeAnmeldung("login", fehlerText(e)); }
-})();
+}
+window.addEventListener("hashchange", zeigeSeite);
+starteApp();
 
 // Den Link "App installieren" ausblenden, wenn die App schon installiert läuft
 if (istInstalliert()) { const l = document.getElementById("installieren-link"); if (l) l.style.display = "none"; }
