@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- QR-Code-Baukasten (fertige Bibliothek, wird beim ersten Start geladen und dann offline gespeichert) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<!-- Verbindung zum Server (Supabase), liegt als Datei im Ordner -->
+<script src="supabase.js"></script>
 <style>
   /* ===== Schriften (liegen im Ordner fonts, kein Google) ===== */
   @font-face { font-family: Inter; font-weight: 400; font-display: swap; src: url(fonts/inter-400.ttf) format("truetype"); }
@@ -201,6 +203,14 @@
   .menue-eintrag span { color: #5b6168; font-size: 14px; }
   .menue-eintrag i { font-style: normal; color: var(--eisblau-dunkel); font-size: 22px; }
 
+  /* ----- Anmeldung und Speicher-Anzeige ----- */
+  body.abgemeldet .nav-oben, body.abgemeldet .nav-unten, body.abgemeldet #test-leiste { display: none !important; }
+  .anmeldung { max-width: 420px; margin: 24px auto; }
+  #sync-status { position: fixed; right: 16px; bottom: 24px; z-index: 50; background: #15171a; color: #fff; padding: 8px 14px; border-radius: 12px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: .25s; max-width: calc(100vw - 32px); }
+  #sync-status.sichtbar { opacity: 1; }
+  #sync-status.fehler { background: var(--rot); }
+  @media (max-width: 719px) { #sync-status { bottom: 96px; } }
+
   /* ----- Am Handy: Navigationsleiste unten ----- */
   @media (max-width: 719px) {
     .nav-oben { display: none; }
@@ -236,6 +246,7 @@
       <a href="#/neu" data-seite="neu">+ Gerät</a>
       <a href="#/sicherung" data-seite="sicherung">Sicherung</a>
       <a href="#/installieren" id="installieren-link" data-seite="installieren">App installieren</a>
+      <a href="#/mehr" data-seite="mehr">Konto</a>
     </nav>
   </div>
 </header>
@@ -257,15 +268,28 @@
 <script>
 /* =====================================================================
    SPEICHER
-   Fürs Erste speichert der Browser alles selbst (localStorage).
-   Vergleich: wie ein Notizblock, der nur an diesem einen Gerät liegt.
-   Stufe 2 ersetzt das durch einen Server.
+   Die Daten liegen auf dem Server (Supabase, Frankfurt). Jede Firma hat
+   einen eigenen Datenblock, die Datenbank lässt nur die eigene Firma ran.
+   Vergleich: wie ein abschließbarer Schrank pro Firma im gemeinsamen Lager.
+   Im Arbeitsspeicher steht der aktuelle Stand (daten), gespeichert wird
+   nach jeder Änderung automatisch.
    ===================================================================== */
-const SPEICHER_NAME = "wartungsbuch-daten";
+const SUPABASE_URL = "https://djpvdrxcdutsyqvnoxzq.supabase.co";
+// Öffentlicher Schlüssel, darf im Code stehen. Der geheime Schlüssel gehört nie hierher.
+const SUPABASE_KEY = "sb_publishable_8VZlYGKT4qbkLLUiAnzHbQ_NPyjzwxT";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function ladeDaten() {
-  let d;
-  try { d = JSON.parse(localStorage.getItem(SPEICHER_NAME)) || {}; } catch (e) { d = {}; }
+const ALT_SPEICHER_NAME = "wartungsbuch-daten";  // alter Browser-Speicher (Stufe 1), nur zum Übernehmen
+const PAPIERKORB_TAGE = 30;
+
+let serverVersion = 0;      // Versionsnummer des Datenblocks auf dem Server
+let serverStand = "{}";     // zuletzt vom Server bestätigter Stand (als Text)
+let firma = null;           // { id, name, rolle, email }
+let bereit = false;         // erst true, wenn angemeldet und Daten geladen
+let daten = normalisiere({});
+
+function normalisiere(d) {
+  d = d || {};
   d.geraete = d.geraete || [];
   d.mitarbeiter = d.mitarbeiter || [];
   d.unterweisungen = d.unterweisungen || [];
@@ -275,7 +299,12 @@ function ladeDaten() {
   return d;
 }
 
-const PAPIERKORB_TAGE = 30;
+// Gibt den letzten bestätigten Stand vom Server zurück (zum Zurückrollen)
+function ladeDaten() {
+  let d;
+  try { d = JSON.parse(serverStand); } catch (e) { d = {}; }
+  return normalisiere(d);
+}
 
 function speichereDaten() {
   // Sicherheitsnetz: nach der Testphase wird nichts mehr gespeichert
@@ -285,18 +314,71 @@ function speichereDaten() {
     zeigeSeite();
     throw new Error("TESTPHASE_ABGELAUFEN");
   }
+  sendeAnServer();
+}
+
+/* ----- Senden: eins nach dem anderen, mit Versionsprüfung ----- */
+let sendet = false, nochmal = false, wiederholung = null;
+
+function zeigeStatus(text, fehler) {
+  let el = document.getElementById("sync-status");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "sync-status";
+    el.className = "nicht-drucken";
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.className = "nicht-drucken" + (text ? " sichtbar" : "") + (fehler ? " fehler" : "");
+}
+
+async function sendeAnServer() {
+  if (sendet) { nochmal = true; return; }
+  sendet = true;
+  clearTimeout(wiederholung);
+  wiederholung = null;
+  zeigeStatus("Speichert …");
   try {
-    localStorage.setItem(SPEICHER_NAME, JSON.stringify(daten));
+    do {
+      nochmal = false;
+      const stand = JSON.stringify(daten);
+      const { data, error } = await sb.rpc("daten_speichern", { neue_daten: daten, erwartete_version: serverVersion });
+      if (error) throw error;
+      if (data === null) { await nachKonflikt(); return; }
+      serverVersion = data;
+      serverStand = stand;
+    } while (nochmal);
+    zeigeStatus("Gespeichert ✓");
+    setTimeout(() => { if (!sendet) zeigeStatus(""); }, 1500);
   } catch (e) {
-    // Speicher im Browser voll (vor allem durch Fotos): nichts halb speichern
-    daten = ladeDaten();
-    alert("Der Speicher im Browser ist voll, das war nicht gespeichert. Tipp: Datensicherung herunterladen und Einträge mit Fotos möglichst klein halten.");
-    zeigeSeite();
-    throw new Error("TESTPHASE_ABGELAUFEN");
+    if (e && e.code) {
+      // Der Server hat die Anfrage abgelehnt (kein Netzproblem): nicht endlos wiederholen
+      zeigeStatus("");
+      alert("Das konnte nicht gespeichert werden: " + (e.message || "Fehler") + ". Bitte Seite neu laden.");
+    } else {
+      zeigeStatus("Nicht gespeichert, keine Verbindung. Neuer Versuch läuft …", true);
+      wiederholung = setTimeout(sendeAnServer, 5000);
+    }
+  } finally {
+    sendet = false;
   }
 }
 
-let daten = ladeDaten();
+// Jemand anderes hat zwischendurch gespeichert: neuen Stand holen, nichts überschreiben
+async function nachKonflikt() {
+  const { data, error } = await sb.from("firmen_daten").select("daten, version").eq("firma_id", firma.id).single();
+  if (error) throw error;
+  serverStand = JSON.stringify(data.daten || {});
+  serverVersion = data.version;
+  daten = ladeDaten();
+  zeigeStatus("");
+  alert("Jemand aus deiner Firma hat gleichzeitig etwas geändert. Die Ansicht ist jetzt aktualisiert. Deine letzte Eingabe wurde nicht übernommen, bitte trage sie noch einmal ein.");
+  zeigeSeite();
+}
+
+window.addEventListener("beforeunload", e => {
+  if (sendet || wiederholung) { e.preventDefault(); e.returnValue = ""; }
+});
 
 /* =====================================================================
    TESTPHASE: 14 Tage frei, danach nur noch ansehen, drucken und sichern.
@@ -535,6 +617,7 @@ function markiereNav(seite) {
 }
 
 function zeigeSeite() {
+  if (!bereit) return;   // erst nach Anmeldung und Laden der Firma
   const [seite, id] = location.hash.replace("#/", "").split("/");
   window.scrollTo(0, 0);
   markiereNav(seite);
@@ -558,6 +641,10 @@ function zeigeSeite() {
 function seiteMehr() {
   inhalt.innerHTML = `
     <h2>Mehr</h2>
+    <div class="karte zeile">
+      <div><b>${sicher(firma.name)}</b><br><span class="klein">${sicher(firma.email)} · ${firma.rolle === "meister" ? "Meister" : "Mitarbeiter"}</span></div>
+      <button class="zweit mini" onclick="abmelden()">Abmelden</button>
+    </div>
     <a class="karte menue-eintrag" href="#/sicherung">
       <div><b>Datensicherung</b><span>Daten als Datei speichern oder laden</span></div><i>›</i>
     </a>
@@ -1195,7 +1282,7 @@ function initialen(name) {
 function seitePersonal() {
   inhalt.innerHTML = `
     <h2>Personal & Unterweisungen</h2>
-    <div class="info-karte">Datenschutz: Namen bleiben bis zur nächsten Version nur auf diesem Gerät gespeichert.</div>
+    <div class="info-karte">Die Daten liegen verschlüsselt auf dem Server und sind nur für deine Firma sichtbar.</div>
 
     <h3>Unterweisungen (${daten.unterweisungen.length})</h3>
     ${daten.unterweisungen.map(u => `
@@ -1325,7 +1412,7 @@ function seiteSicherung() {
   inhalt.innerHTML = `
     <a class="zurueck" href="#/mehr">← Mehr</a>
     <h2>Datensicherung</h2>
-    <div class="info-karte">Deine Daten liegen nur auf diesem Gerät. Speichere regelmäßig eine Sicherung, zum Beispiel einmal pro Woche.</div>
+    <div class="info-karte">Deine Daten liegen auf dem Server und sind nur für deine Firma sichtbar. Zusätzlich kannst du eine Sicherung als Datei speichern, zum Beispiel einmal pro Woche.</div>
     <div class="karte">
       <div class="abschnitt-kopf">
         <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></div>
@@ -1336,7 +1423,7 @@ function seiteSicherung() {
     <div class="karte">
       <div class="abschnitt-kopf">
         <div class="icon-kreis"><svg viewBox="0 0 24 24"><path d="M12 20V9M7 13l5-5 5 5M5 4h14"/></svg></div>
-        <div><b>Sicherung laden</b><span>Ersetzt alle Daten auf diesem Gerät. So bekommst du Daten vom PC aufs Handy.</span></div>
+        <div><b>Sicherung laden</b><span>Ersetzt alle Daten deiner Firma durch die Sicherung.</span></div>
       </div>
       <input type="file" id="datei" accept=".json,application/json" style="margin-top:12px">
       <button class="zweit" onclick="sicherungLaden()">Sicherung laden</button>
@@ -1360,9 +1447,9 @@ function sicherungLaden() {
     let neu;
     try { neu = JSON.parse(leser.result); } catch (e) { neu = null; }
     if (!neu || !Array.isArray(neu.geraete)) { alert("Das ist keine gültige Wartungsbuch-Sicherung."); return; }
-    if (!confirm("Alle Daten auf diesem Gerät durch die Sicherung ersetzen?")) return;
-    localStorage.setItem(SPEICHER_NAME, JSON.stringify(neu));
-    daten = ladeDaten();
+    if (!confirm("Alle Daten deiner Firma durch die Sicherung ersetzen?")) return;
+    daten = normalisiere(neu);
+    speichereDaten();
     alert("Sicherung geladen.");
     location.hash = "#/";
     zeigeSeite();
@@ -1459,15 +1546,169 @@ function seiteInstallieren() {
     <button class="nicht-drucken" onclick="window.print()">QR-Code drucken</button>`;
 }
 
+/* =====================================================================
+   ANMELDUNG UND FIRMA
+   Erst anmelden, dann die Firma laden. Ohne Anmeldung sieht man keine Daten.
+   ===================================================================== */
+function fehlerText(e) {
+  const m = (e && e.message) || "";
+  if (/Invalid login credentials/i.test(m)) return "E-Mail oder Passwort stimmt nicht.";
+  if (/Email not confirmed/i.test(m)) return "Bitte bestätige zuerst den Link in der E-Mail, die wir dir geschickt haben.";
+  if (/already registered/i.test(m)) return "Diese E-Mail ist schon registriert. Bitte melde dich an.";
+  if (/rate limit/i.test(m)) return "Zu viele Versuche. Bitte warte kurz und probiere es dann noch einmal.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Keine Verbindung zum Server. Bitte prüfe dein Internet.";
+  return m || "Das hat nicht geklappt.";
+}
+
+function zeigeAnmeldung(modus, meldung, mail) {
+  bereit = false;
+  document.body.classList.add("abgemeldet");
+  const neu = modus === "neu";
+  inhalt.innerHTML = `
+    <div class="karte formular anmeldung">
+      <h2>${neu ? "Firma registrieren" : "Anmelden"}</h2>
+      <p class="klein">${neu ? "Lege dein Konto an. Danach trägst du den Namen deiner Firma ein." : "Melde dich mit deiner E-Mail-Adresse an."}</p>
+      ${meldung ? `<div class="fehlt">${sicher(meldung)}</div>` : ""}
+      <form id="a-form">
+        <label for="a-mail">E-Mail</label>
+        <input id="a-mail" type="email" autocomplete="email" value="${sicher(mail || "")}" required>
+        <label for="a-pw">Passwort${neu ? " (mindestens 8 Zeichen)" : ""}</label>
+        <input id="a-pw" type="password" autocomplete="${neu ? "new-password" : "current-password"}" minlength="${neu ? 8 : 1}" required>
+        <div class="zeile-knoepfe">
+          <button type="submit" id="a-knopf">${neu ? "Konto anlegen" : "Anmelden"}</button>
+          <a href="#" id="a-wechsel">${neu ? "Schon ein Konto? Anmelden" : "Neu hier? Firma registrieren"}</a>
+        </div>
+      </form>
+    </div>`;
+  document.getElementById("a-form").addEventListener("submit", ev => { ev.preventDefault(); anmeldungAbsenden(modus); });
+  document.getElementById("a-wechsel").addEventListener("click", ev => { ev.preventDefault(); zeigeAnmeldung(neu ? "login" : "neu"); });
+}
+
+async function anmeldungAbsenden(modus) {
+  const mail = document.getElementById("a-mail").value.trim();
+  const pw = document.getElementById("a-pw").value;
+  document.getElementById("a-knopf").disabled = true;
+  try {
+    if (modus === "neu") {
+      const { data, error } = await sb.auth.signUp({ email: mail, password: pw, options: { emailRedirectTo: location.origin + location.pathname } });
+      if (error) throw error;
+      if (!data.session) {
+        zeigeAnmeldung("login", "Fast geschafft: Wir haben dir eine E-Mail geschickt. Klicke auf den Link darin und melde dich dann hier an.", mail);
+        return;
+      }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email: mail, password: pw });
+      if (error) throw error;
+    }
+    await ladeFirma();
+  } catch (e) {
+    zeigeAnmeldung(modus, fehlerText(e), mail);
+  }
+}
+
+async function abmelden() {
+  try { await sb.auth.signOut(); } catch (e) {}
+  location.hash = "";
+  location.reload();
+}
+
+// Holt Firma und Daten des angemeldeten Nutzers
+async function ladeFirma() {
+  inhalt.innerHTML = `<p class="leer">Lädt …</p>`;
+  try {
+    const { data: u, error: ue } = await sb.auth.getUser();
+    if (ue || !u || !u.user) { zeigeAnmeldung("login"); return; }
+    const { data: m, error } = await sb.from("mitglieder")
+      .select("firma_id, rolle, firmen(name)").eq("user_id", u.user.id).maybeSingle();
+    if (error) throw error;
+    if (!m) { zeigeFirmaAnlegen(); return; }
+    const { data: d, error: de } = await sb.from("firmen_daten")
+      .select("daten, version").eq("firma_id", m.firma_id).single();
+    if (de) throw de;
+    firma = { id: m.firma_id, name: m.firmen.name, rolle: m.rolle, email: u.user.email };
+    serverStand = JSON.stringify(d.daten || {});
+    serverVersion = d.version;
+    daten = ladeDaten();
+    bereit = true;
+    document.body.classList.remove("abgemeldet");
+    zeigeSeite();
+    // Nach Ablauf der Testphase einmal pro Sitzung das Hinweisfenster zeigen
+    if (testAbgelaufen() && !sessionStorage.getItem("test-hinweis-gezeigt")) {
+      sessionStorage.setItem("test-hinweis-gezeigt", "1");
+      zeigeTestEnde();
+    }
+  } catch (e) {
+    bereit = false;
+    inhalt.innerHTML = `
+      <div class="karte formular anmeldung">
+        <h2>Keine Verbindung</h2>
+        <p class="klein">${sicher(fehlerText(e))}</p>
+        <button onclick="ladeFirma()">Erneut versuchen</button>
+        <button class="zweit" onclick="abmelden()">Abmelden</button>
+      </div>`;
+  }
+}
+
+function zeigeFirmaAnlegen(meldung) {
+  bereit = false;
+  document.body.classList.add("abgemeldet");
+  // Daten aus der alten Version (nur im Browser) zum Übernehmen anbieten
+  let alt = null;
+  try { alt = JSON.parse(localStorage.getItem(ALT_SPEICHER_NAME)); } catch (e) {}
+  const nAlt = alt && Array.isArray(alt.geraete) ? alt.geraete.length : 0;
+  inhalt.innerHTML = `
+    <div class="karte formular anmeldung">
+      <h2>Deine Firma</h2>
+      <p class="klein">Wie heißt dein Betrieb? Der Name sehen nur du und deine Leute.</p>
+      ${meldung ? `<div class="fehlt">${sicher(meldung)}</div>` : ""}
+      <form id="f-form">
+        <label for="f-name">Firmenname</label>
+        <input id="f-name" maxlength="120" required>
+        ${nAlt ? `<label class="haken"><input type="checkbox" id="f-alt" checked> Meine ${nAlt} ${nAlt === 1 ? "Gerät" : "Geräte"} von diesem Gerät übernehmen</label>` : ""}
+        <div class="zeile-knoepfe">
+          <button type="submit" id="f-knopf">Firma anlegen</button>
+          <a href="#" id="f-abmelden">Abmelden</a>
+        </div>
+      </form>
+    </div>`;
+  document.getElementById("f-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const box = document.getElementById("f-alt");
+    firmaAnlegen(box && box.checked ? alt : null);
+  });
+  document.getElementById("f-abmelden").addEventListener("click", ev => { ev.preventDefault(); abmelden(); });
+}
+
+async function firmaAnlegen(alt) {
+  const name = document.getElementById("f-name").value.trim();
+  if (!name) return;
+  document.getElementById("f-knopf").disabled = true;
+  try {
+    const { error } = await sb.rpc("firma_registrieren", { firmenname: name });
+    if (error) throw error;
+    await ladeFirma();
+    if (alt && bereit) {
+      daten = normalisiere(alt);
+      await sendeAnServer();
+      // Alten Browser-Speicher erst löschen, wenn der Server alles hat
+      if (serverStand === JSON.stringify(daten)) {
+        try { localStorage.removeItem(ALT_SPEICHER_NAME); } catch (e) {}
+      }
+      zeigeSeite();
+    }
+  } catch (e) {
+    zeigeFirmaAnlegen(fehlerText(e));
+  }
+}
+
 /* ===== Start ===== */
 window.addEventListener("hashchange", zeigeSeite);
-zeigeSeite();
-
-// Nach Ablauf der Testphase einmal pro Sitzung das Hinweisfenster zeigen
-if (testAbgelaufen() && !sessionStorage.getItem("test-hinweis-gezeigt")) {
-  sessionStorage.setItem("test-hinweis-gezeigt", "1");
-  zeigeTestEnde();
-}
+(async () => {
+  try {
+    const { data } = await sb.auth.getSession();
+    if (!data.session) zeigeAnmeldung("login"); else await ladeFirma();
+  } catch (e) { zeigeAnmeldung("login", fehlerText(e)); }
+})();
 
 // Den Link "App installieren" ausblenden, wenn die App schon installiert läuft
 if (istInstalliert()) { const l = document.getElementById("installieren-link"); if (l) l.style.display = "none"; }

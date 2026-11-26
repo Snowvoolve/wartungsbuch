@@ -1,9 +1,9 @@
 /* Service Worker: legt die App-Dateien auf dem Gerät ab, damit sie auch offline startet.
    Vergleich: wie ein Ersatzteillager vor Ort statt jedes Mal beim Händler zu bestellen.
    Bei jeder Änderung an der App die VERSION hochzählen, sonst sehen Nutzer die alte Version. */
-const VERSION = "wartungsbuch-v14";
+const VERSION = "wartungsbuch-v15";
 const DATEIEN = [
-  "./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png",
+  "./", "./index.html", "./supabase.js", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png",
   "./fonts/inter-400.ttf", "./fonts/inter-500.ttf", "./fonts/inter-600.ttf", "./fonts/tenor-sans.ttf",
   "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
 ];
@@ -23,6 +23,8 @@ self.addEventListener("activate", e => {
 // Erst aus dem Internet laden (immer aktuell), wenn offline, aus dem Lager
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  // Anfragen an den Server (Login, Firmendaten) nie zwischenspeichern, sonst bleiben fremde Daten im Gerät
+  if (new URL(e.request.url).hostname.endsWith("supabase.co")) return;
   // Eigene Dateien immer beim Server nachfragen, ob es eine neue Version gibt
   const eigene = new URL(e.request.url).origin === self.location.origin;
   const anfrage = eigene ? fetch(e.request.url, { cache: "no-cache" }) : fetch(e.request);
